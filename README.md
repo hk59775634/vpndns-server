@@ -6,11 +6,14 @@
 
 **预编译二进制：** [GitHub Releases](https://github.com/hk59775634/vpndns-server/releases)（多架构压缩包与 `SHA256SUMS.txt`）。维护者打包：`RELEASE_USE_DOCKER=1 ./scripts/release-build.sh v1.x.x`（需 Docker；本机 Go 1.22+ 也可直接执行该脚本）。
 
-**容器镜像（Docker Hub）：** [hk59775634/vpndns-server](https://hub.docker.com/r/hk59775634/vpndns-server) — 多架构 **`linux/amd64`、`linux/arm64`、`linux/arm/v7`**，标签 **`latest`** 与 **`v1.0.1`** 等与 [Releases](https://github.com/hk59775634/vpndns-server/releases) 版本对齐。
+**容器镜像（Docker Hub）：** [hk59775634/vpndns-server](https://hub.docker.com/r/hk59775634/vpndns-server) — 多架构 **`linux/amd64`、`linux/arm64`、`linux/arm/v7`**。
+
+**标签策略：** 每个正式版本会同时推送 **`:vX.Y.Z`**（与 [GitHub Releases](https://github.com/hk59775634/vpndns-server/releases) 一致）和 **`:latest`**。历史 **`v*`** 标签保留在 Hub，便于固定版本部署与回滚；生产环境建议显式写 `image: ...:v1.0.1` 而非仅用 `latest`。维护者发版：`docker login` 后执行 `VERSION=v1.x.x ./scripts/docker-buildx-push.sh`（或 `USE_GIT_TAG=1 ./scripts/docker-buildx-push.sh`）。
 
 ```bash
-docker pull hk59775634/vpndns-server:v1.0.1
-# 或 docker compose up -d（见仓库 docker-compose.yml）
+docker pull hk59775634/vpndns-server:v1.0.1   # 推荐生产固定版本
+# docker pull hk59775634/vpndns-server:latest  # 跟踪最新构建
+# docker compose up -d  # 见 docker-compose.yml，可按需改 image 为具体 v 标签
 ```
 
 ## 功能摘要

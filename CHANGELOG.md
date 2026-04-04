@@ -22,7 +22,9 @@
 ### 容器镜像（Docker Hub）
 
 - 官方镜像：[hub.docker.com/r/hk59775634/vpndns-server](https://hub.docker.com/r/hk59775634/vpndns-server)
-- 平台：**linux/amd64**、**linux/arm64**、**linux/arm/v7**；标签 **`latest`** 与 **`v1.0.1`** 等与 Git 标签一致（由 `VERSION=v1.x.x ./scripts/docker-buildx-push.sh` 推送）。
+- 平台：**linux/amd64**、**linux/arm64**、**linux/arm/v7**。
+- **标签策略：** 每个正式版本同时推送 **`:vX.Y.Z`** 与 **`:latest`**（`VERSION=v1.x.x ./scripts/docker-buildx-push.sh` 或 `USE_GIT_TAG=1`）；**历史 `v*` 标签保留在 Hub**，便于固定版本与回滚。
+- `scripts/docker-buildx-push.sh` 头部约定上述策略；未设置 `VERSION` 时仅推 `latest` 并打印警告。
 - `Dockerfile` 增加 OCI `org.opencontainers.image.*` 标签（源码、说明、版本），便于与 [GitHub 仓库](https://github.com/hk59775634/vpndns-server) 关联。
 
 ---
