@@ -9,7 +9,8 @@
 ## 2. 编译
 
 ```bash
-git clone <repo> && cd dns
+git clone https://github.com/hk59775634/vpndns-server.git
+cd vpndns-server
 go build -ldflags="-s -w" -o vpndns-server ./cmd/server
 sudo install -m 0755 vpndns-server /usr/local/bin/
 ```
