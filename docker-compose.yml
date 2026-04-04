@@ -1,0 +1,39 @@
+# VPN DNS + Redis（Compose）
+#
+# 多架构镜像（linux/amd64 + linux/arm64）需用 buildx 构建并推送 manifest，例如：
+#   ./scripts/docker-buildx-push.sh
+# 推送后本文件中的 image 在 amd64 / arm64 主机会自动拉取对应架构。
+#
+# 启动：docker compose up -d
+# 默认将容器 53 映射到主机 5353（避免非 root 无法绑定主机 53）；dig 示例：dig @127.0.0.1 -p 5353 example.com
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  vpndns:
+    image: hk59775634/vpndns-server:latest
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "5353:53/udp"
+      - "5353:53/tcp"
+      - "8053:8053"
+      - "8080:8080"
+    volumes:
+      - ./configs/docker-compose.config.yaml:/etc/vpndns/config.yaml:ro
+
+volumes:
+  redis-data:

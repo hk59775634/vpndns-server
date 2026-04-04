@@ -1,0 +1,21 @@
+[Unit]
+Description=VPN DNS CDN smart resolver (UDP/TCP/DoH + admin)
+Documentation=https://github.com/yourorg/vpndns
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 任选其一：-config 优先于 CONFIG
+Environment=CONFIG=/etc/vpndns/config.yaml
+ExecStart=/usr/local/bin/vpndns-server
+# ExecStart=/usr/local/bin/vpndns-server -config /etc/vpndns/config.yaml
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=1048576
+# User=vpndns
+# Group=vpndns
+# 建议以专用用户运行，并确保对 CONFIG 与 TLS 文件有读权限
+
+[Install]
+WantedBy=multi-user.target

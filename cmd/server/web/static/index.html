@@ -1,0 +1,2468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VPN DNS — 控制台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --agh-green: #2d9361;
+      --agh-green-dim: #247a52;
+      --agh-green-glow: rgba(45, 147, 97, 0.25);
+      --bg: #f3f5f7;
+      --bg-sidebar: #252526;
+      --bg-sidebar-hover: #2d2d30;
+      --panel: #ffffff;
+      --text: #1a1d21;
+      --text-muted: #5c6570;
+      --border: #dde2e8;
+      --danger: #c42b2b;
+      --radius: 10px;
+      --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      font-size: 15px;
+      line-height: 1.45;
+    }
+    .layout {
+      display: flex;
+      width: 100%;
+      min-height: 100vh;
+    }
+    aside {
+      width: 240px;
+      flex-shrink: 0;
+      background: var(--bg-sidebar);
+      color: #e8eaed;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #1e1e1e;
+    }
+    .brand {
+      padding: 1.25rem 1.1rem 1rem;
+      border-bottom: 1px solid #333;
+    }
+    .brand strong {
+      display: block;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .brand span {
+      font-size: 0.75rem;
+      color: #8b9299;
+      margin-top: 0.2rem;
+      display: block;
+    }
+    .nav-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.5rem 0 1rem;
+    }
+    nav button {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      width: 100%;
+      text-align: left;
+      padding: 0.55rem 1rem;
+      margin: 0 0.35rem;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: #c8cdd3;
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.9rem;
+      transition: background .15s, color .15s;
+    }
+    nav button:hover { background: var(--bg-sidebar-hover); color: #fff; }
+    nav button.active {
+      background: var(--agh-green-glow);
+      color: #7dffc4;
+      font-weight: 600;
+    }
+    nav .group {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6d7379;
+      padding: 1rem 1rem 0.35rem;
+      font-weight: 600;
+    }
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    header.topbar {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 0.85rem 1.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      box-shadow: var(--shadow);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    header.topbar h1 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+    .top-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    main {
+      padding: 1.25rem 1.75rem 3rem;
+      flex: 1;
+      overflow: auto;
+    }
+    .page { display: none; max-width: 1100px; }
+    .page.active { display: block; }
+    /* 查询日志：占满主内容区宽度 */
+    .page.page-full {
+      max-width: none;
+      width: 100%;
+    }
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.15rem 1.35rem;
+      margin-bottom: 1rem;
+      box-shadow: var(--shadow);
+    }
+    .section h2 {
+      margin: 0 0 0.85rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .section h2::before {
+      content: "";
+      width: 3px;
+      height: 1rem;
+      background: var(--agh-green);
+      border-radius: 2px;
+    }
+    .hint {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin: -0.4rem 0 0.85rem;
+      line-height: 1.4;
+    }
+    .grid2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 0.85rem 1.25rem;
+    }
+    label.field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    label.field span.key { color: var(--text); }
+    label.field span.cfg-path {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 400;
+      color: var(--text-muted);
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      line-height: 1.35;
+    }
+    label.field-checkwrap { gap: 0.35rem !important; }
+    .field-checkwrap .check-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-start;
+    }
+    .field-checkwrap .check-row input { margin-top: 0.2rem; flex-shrink: 0; }
+    .field-checkwrap .check-text { display: flex; flex-direction: column; gap: 0.12rem; min-width: 0; }
+    .pem-file-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin: 0.2rem 0 0.35rem;
+    }
+    .pem-file-row input[type="file"] {
+      font-size: 0.76rem;
+      max-width: 100%;
+    }
+    input[type="text"], input[type="number"], input[type="password"], select, textarea {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.82rem;
+      padding: 0.45rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fafbfc;
+      color: var(--text);
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: 2px solid var(--agh-green-glow);
+      border-color: var(--agh-green);
+      background: #fff;
+    }
+    textarea { resize: vertical; min-height: 88px; width: 100%; }
+    .check {
+      flex-direction: row !important;
+      align-items: center;
+      gap: 0.5rem !important;
+    }
+    .check input { width: auto; }
+    table.upstream {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    table.upstream th {
+      text-align: left;
+      padding: 0.4rem 0.5rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+    }
+    table.upstream td { padding: 0.35rem 0.5rem; vertical-align: middle; }
+    table.upstream input { width: 100%; min-width: 0; }
+    table.upstream .w-name { max-width: 120px; }
+    table.upstream .w-url { min-width: 200px; }
+    table.upstream .w-addr { min-width: 140px; }
+    table.upstream .w-w { width: 72px; }
+    .btn {
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: filter .15s, transform .05s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: var(--agh-green);
+      color: #fff;
+    }
+    .btn-primary:hover { filter: brightness(1.06); }
+    .btn-secondary {
+      background: #eef1f4;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: #e4e8ec; }
+    .btn-danger { background: #fde8e8; color: var(--danger); border: 1px solid #f5c2c2; }
+    .btn-sm { padding: 0.3rem 0.65rem; font-size: 0.8rem; }
+    .row-actions { margin-top: 0.65rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .toast {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.25rem;
+      padding: 0.75rem 1.1rem;
+      border-radius: 8px;
+      background: #1e1e1e;
+      color: #fff;
+      font-size: 0.88rem;
+      box-shadow: 0 8px 24px rgba(0,0,0,.2);
+      z-index: 100;
+      max-width: min(420px, 92vw);
+      display: none;
+    }
+    .toast.show { display: block; }
+    .toast.err { background: #5c2121; }
+    .toast.ok { background: var(--agh-green-dim); }
+    pre.log {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 1rem;
+      border-radius: 8px;
+      overflow: auto;
+      max-height: 420px;
+      font-size: 0.78rem;
+      line-height: 1.35;
+    }
+    .pill {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      background: #e8f5ef;
+      color: var(--agh-green-dim);
+    }
+    .stat-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .stat-cards .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      box-shadow: var(--shadow);
+    }
+    .stat-cards .card b { font-size: 1.25rem; display: block; color: var(--agh-green-dim); }
+    .stat-cards .card small { color: var(--text-muted); font-size: 0.75rem; }
+    /* 仪表盘 — 参考 AdGuard Home 大数字卡片 */
+    .dash-hero {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    @media (max-width: 1024px) {
+      .dash-hero { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 520px) {
+      .dash-hero { grid-template-columns: 1fr; }
+    }
+    .dash-metric {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.15rem 1.2rem;
+      box-shadow: var(--shadow);
+      border-left: 4px solid var(--agh-green);
+      min-height: 108px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .dash-metric.accent-block { border-left-color: #c45c5c; }
+    .dash-metric.accent-cache { border-left-color: #6b7c93; }
+    .dash-metric.accent-time { border-left-color: #5b7fd4; }
+    .dash-metric .dm-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.35rem;
+    }
+    .dash-metric .dm-value {
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      line-height: 1.15;
+      font-variant-numeric: tabular-nums;
+    }
+    .dash-metric .dm-sub {
+      margin-top: 0.4rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.35;
+    }
+    .dash-detail {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .dash-dcell {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 0.9rem;
+      box-shadow: var(--shadow);
+    }
+    .dash-dcell .dv { font-size: 1.2rem; font-weight: 700; color: var(--agh-green-dim); font-variant-numeric: tabular-nums; }
+    .dash-dcell .dl { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem; line-height: 1.3; }
+    .dash-uptime {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      padding: 0.65rem 0.85rem;
+      background: #f8f9fb;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .dash-uptime strong { color: var(--text); font-weight: 600; }
+    .security-banner {
+      background: #fff8e6;
+      border: 1px solid #f0e0b2;
+      padding: 0.65rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      color: #6b5a2a;
+    }
+    .login-gate {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(26, 29, 33, 0.55);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .login-gate.hidden { display: none !important; }
+    .geo-modal-panel {
+      max-width: 920px;
+      width: 100%;
+      max-height: min(90vh, 880px);
+      display: flex;
+      flex-direction: column;
+      padding: 1.25rem 1.5rem 1.5rem;
+    }
+    .geo-modal-panel h2 { margin: 0 0 0.35rem; font-size: 1.15rem; }
+    .geo-modal-panel .geo-modal-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: #fafbfc;
+      margin-top: 0.65rem;
+    }
+    table.geo-cidr-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+      font-family: ui-monospace, monospace;
+    }
+    table.geo-cidr-table th,
+    table.geo-cidr-table td {
+      padding: 0.4rem 0.65rem;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+    table.geo-cidr-table th {
+      position: sticky;
+      top: 0;
+      background: #e8ecf0;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+    .geo-loaded-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 0.75rem;
+      margin: 0 0 0.85rem;
+      padding: 0.65rem 0.85rem;
+      background: #f0f7f2;
+      border: 1px solid #c5dcc8;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      color: var(--text);
+    }
+    .geo-loaded-line strong { font-variant-numeric: tabular-nums; }
+    .wl-list-panel {
+      margin-top: 1rem;
+      max-height: min(55vh, 480px);
+      overflow-y: auto;
+      padding: 0.5rem 0.65rem;
+    }
+    .wl-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.15rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .wl-row:last-child { border-bottom: none; }
+    .login-card {
+      background: var(--panel);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 40px rgba(0,0,0,.12);
+      padding: 1.75rem 1.85rem;
+      max-width: 400px;
+      width: 100%;
+      border: 1px solid var(--border);
+    }
+    .login-card h2 { margin: 0 0 0.5rem; font-size: 1.2rem; }
+    .login-card .field-row { margin-top: 1rem; }
+    .login-card .login-err {
+      margin: 0.75rem 0 0;
+      font-size: 0.82rem;
+      color: var(--danger);
+      min-height: 1.2em;
+    }
+    /* AdGuard Home–style query log */
+    .log-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: #fafbfc;
+      max-height: min(70vh, 640px);
+      overflow-y: auto;
+      margin-top: 0.75rem;
+    }
+    table.log-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+    }
+    table.log-table thead {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: linear-gradient(180deg, #f0f3f6 0%, #e8ecf0 100%);
+      box-shadow: 0 1px 0 var(--border);
+    }
+    table.log-table th {
+      text-align: left;
+      padding: 0.55rem 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    table.log-table td {
+      padding: 0.5rem 0.75rem;
+      border-top: 1px solid var(--border);
+      vertical-align: top;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.78rem;
+    }
+    table.log-table tbody tr:hover td { background: rgba(45, 147, 97, 0.06); }
+    .log-col-time { white-space: nowrap; color: var(--text-muted); width: 1%; }
+    .log-col-req .req-domain { font-weight: 600; color: var(--text); font-family: inherit; word-break: break-all; }
+    .log-col-req .req-type {
+      display: inline-block;
+      margin-top: 0.2rem;
+      font-size: 0.7rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      background: #e8ecf0;
+      color: var(--text-muted);
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+    }
+    .log-col-resp .resp-main { color: var(--text); word-break: break-word; line-height: 1.35; }
+    .log-col-resp .resp-meta { margin-top: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.4rem 0.65rem; align-items: center; }
+    .log-col-resp .lat { color: var(--text-muted); font-size: 0.72rem; }
+    .route-pill {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 0.12rem 0.45rem;
+      border-radius: 4px;
+      font-family: "DM Sans", system-ui, sans-serif;
+      letter-spacing: 0.02em;
+    }
+    .route-pill.route-cn { background: #dff6ea; color: #1d6b4a; }
+    .route-pill.route-out { background: #e3eeff; color: #2a5580; }
+    .route-pill.route-cache { background: #eef0f3; color: #5c6570; }
+    .route-pill.route-block { background: #fff0e6; color: #a65a1a; }
+    .route-pill.route-bl { background: #fde8e8; color: #a32020; }
+    .route-pill.route-err { background: #f3e8fd; color: #6b3a9e; }
+    .route-pill.route-dash { background: #f0f0f0; color: #888; }
+    .log-col-client { min-width: 140px; }
+    .log-col-client .cl-line { margin: 0.15rem 0; line-height: 1.35; }
+    .log-col-client .cl-lbl {
+      display: inline-block;
+      min-width: 2.5rem;
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      font-family: "DM Sans", system-ui, sans-serif;
+    }
+    .log-empty { padding: 2rem; text-align: center; color: var(--text-muted); font-size: 0.9rem; }
+    /* 白名单订阅 — AdGuard Home 风格状态区 */
+    .sub-agh-card {
+      background: linear-gradient(135deg, #f8faf9 0%, #f0f4f2 100%);
+      border: 1px solid #d4e0d9;
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+      margin-bottom: 1rem;
+      box-shadow: var(--shadow);
+    }
+    .sub-agh-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.85rem;
+      border-bottom: 1px solid #d4e0d9;
+    }
+    .sub-agh-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .sub-agh-title::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--agh-green);
+      box-shadow: 0 0 0 3px var(--agh-green-glow);
+    }
+    .sub-agh-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.85rem 1rem;
+    }
+    .sub-agh-stat .sn {
+      display: block;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--agh-green-dim);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.2;
+    }
+    .sub-agh-stat .sl {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+      line-height: 1.35;
+    }
+    .sub-agh-meta {
+      margin-top: 0.85rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .sub-agh-meta code { font-size: 0.72rem; background: #e8ece9; padding: 0.1rem 0.35rem; border-radius: 4px; }
+    .sub-agh-err {
+      margin-top: 0.65rem;
+      padding: 0.5rem 0.65rem;
+      background: #fdecec;
+      border: 1px solid #f5c4c4;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      color: #8b2a2a;
+      display: none;
+    }
+    .sub-agh-err.show { display: block; }
+    .cache-list-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem 1rem;
+      margin-bottom: 0.85rem;
+    }
+    .cache-list-toolbar .field { margin: 0; flex-direction: row; align-items: center; gap: 0.4rem; }
+    .cache-list-toolbar .field span.key { font-size: 0.8rem; }
+    .cache-table-wrap {
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: #fafbfc;
+      max-height: min(70vh, 560px);
+    }
+    table.cache-list {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    table.cache-list th {
+      text-align: left;
+      padding: 0.45rem 0.55rem;
+      position: sticky;
+      top: 0;
+      background: var(--panel);
+      z-index: 1;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    table.cache-list td {
+      padding: 0.4rem 0.55rem;
+      border-bottom: 1px solid #eef0f3;
+      vertical-align: top;
+    }
+    table.cache-list td.cache-key {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.74rem;
+      max-width: min(36vw, 320px);
+      word-break: break-all;
+    }
+    table.cache-list td.cache-summary {
+      color: var(--text);
+      word-break: break-word;
+    }
+    table.cache-list td.cache-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .cache-pager {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-top: 0.9rem;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <div class="brand">
+        <strong>VPN DNS</strong>
+        <span>智能解析 · 控制台</span>
+      </div>
+      <div class="nav-scroll">
+        <div class="group">总览</div>
+        <nav>
+          <button type="button" data-page="dash" class="active">仪表盘</button>
+        </nav>
+        <div class="group">设置</div>
+        <nav>
+          <button type="button" data-page="general">常规设置</button>
+          <button type="button" data-page="redis">Redis 连接</button>
+          <button type="button" data-page="upstream">上游 DNS</button>
+          <button type="button" data-page="resolver">解析与限速</button>
+          <button type="button" data-page="mapper">VIP 映射</button>
+          <button type="button" data-page="geoip">中国 IP 库</button>
+        </nav>
+        <div class="group">过滤</div>
+        <nav>
+          <button type="button" data-page="security">安全与黑名单</button>
+          <button type="button" data-page="whitelist">白名单</button>
+          <button type="button" data-page="subscribe">白名单订阅</button>
+        </nav>
+        <div class="group">工具</div>
+        <nav>
+          <button type="button" data-page="monitor">监控面板</button>
+          <button type="button" data-page="cache">DNS 缓存</button>
+          <button type="button" data-page="logs">查询日志</button>
+          <button type="button" data-page="system">从磁盘重载</button>
+        </nav>
+      </div>
+    </aside>
+    <div class="content">
+      <header class="topbar">
+        <h1 id="page-title">仪表盘</h1>
+        <div class="top-actions">
+          <span class="pill" id="health-pill">检查中…</span>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-logout">退出登录</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-load-cfg">重新读取配置</button>
+          <button type="button" class="btn btn-primary" id="btn-save-cfg">保存并应用</button>
+        </div>
+      </header>
+      <main>
+        <div id="security-banner" class="security-banner">请使用账号密码登录控制台（默认用户名与密码均为 <code>admin</code>）。登录后请尽快修改密码。若需脚本调用 REST，可在「常规设置」中填写脚本 API 密钥（配置项 <code>admin.api_key</code>），请求头携带 <code>X-API-Key</code> 即可。</div>
+
+        <!-- Dashboard（参考 AdGuard Home 统计布局） -->
+        <div class="page active" id="page-dash">
+          <div class="dash-hero">
+            <div class="dash-metric">
+              <div class="dm-label">DNS 查询</div>
+              <div class="dm-value" id="dash-dns-queries">—</div>
+              <div class="dm-sub">已通过限速且含有效问题的请求（UDP/TCP/DoH）</div>
+            </div>
+            <div class="dash-metric accent-block">
+              <div class="dm-label">已过滤 / 拦截</div>
+              <div class="dm-value" id="dash-blocked">—</div>
+              <div class="dm-sub" id="dash-blocked-pct">黑名单 + 非白名单策略；占 DNS 查询比例见下方</div>
+            </div>
+            <div class="dash-metric accent-cache">
+              <div class="dm-label">缓存应答</div>
+              <div class="dm-value" id="dash-cache">—</div>
+              <div class="dm-sub">来自 Redis 缓存命中（含 ECS / 全局键）</div>
+            </div>
+            <div class="dash-metric accent-time">
+              <div class="dm-label">平均处理时间</div>
+              <div class="dm-value" id="dash-latency">—</div>
+              <div class="dm-sub">自收到查询至写出响应（毫秒，含已记录样本）</div>
+            </div>
+          </div>
+          <div class="dash-detail">
+            <div class="dash-dcell"><div class="dv" id="dash-cn">—</div><div class="dl">国内解析路径</div></div>
+            <div class="dash-dcell"><div class="dv" id="dash-out">—</div><div class="dl">海外上游解析</div></div>
+            <div class="dash-dcell"><div class="dv" id="dash-bl">—</div><div class="dl">黑名单拦截</div></div>
+            <div class="dash-dcell"><div class="dv" id="dash-wl">—</div><div class="dl">非白名单拦截</div></div>
+            <div class="dash-dcell"><div class="dv" id="dash-rl">—</div><div class="dl">客户端限速拒绝</div></div>
+            <div class="dash-dcell"><div class="dv" id="dash-mal">—</div><div class="dl">畸形 / 无效请求</div></div>
+            <div class="dash-dcell"><div class="dv" id="dash-doh-auth">—</div><div class="dl">DoH 鉴权失败</div></div>
+            <div class="dash-dcell"><div class="dv" id="dash-err">—</div><div class="dl">解析错误（SERVFAIL 等）</div></div>
+          </div>
+          <div class="dash-uptime">
+            运行时间 <strong id="dash-uptime">—</strong> · API 状态 <strong id="st-health">—</strong> · 日志行数 <strong id="dash-logged">—</strong>
+            · <button type="button" class="btn btn-danger btn-sm" id="dash-reset-stats" style="vertical-align:middle;margin-left:0.25rem">一键重置记录</button>
+            <span class="hint" style="display:block;margin-top:0.35rem;font-size:0.78rem">重置后仪表盘与 <code>/metrics</code> 计数从零开始，并删除 Redis 中的统计持久化键；不影响查询日志与 DNS 缓存。</span>
+          </div>
+          <div class="section">
+            <h2>快捷操作</h2>
+            <p class="hint">保存配置后写入磁盘并热更新上游、黑名单、限速、映射与 GeoIP 源；监听地址与 Redis 连接需<strong>重启进程</strong>生效。</p>
+            <div class="row-actions">
+              <button type="button" class="btn btn-secondary" id="dash-reload-disk">从磁盘重新加载</button>
+              <button type="button" class="btn btn-secondary" id="dash-geo">刷新中国 IP 库</button>
+              <button type="button" class="btn btn-primary" id="dash-goto-general">编辑常规设置</button>
+              <button type="button" class="btn btn-secondary" id="dash-goto-logs">查看查询日志</button>
+              <button type="button" class="btn btn-secondary" id="dash-goto-monitor">监控面板</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="page" id="page-monitor">
+          <div class="section">
+            <h2>运行与可观测性</h2>
+            <p class="hint">Prometheus 可抓取本管理端口上的 <code>/metrics</code>（无需登录）。Grafana 可接入 Prometheus 数据源后绘制仪表盘。</p>
+            <div class="row-actions">
+              <a class="btn btn-secondary" id="link-metrics" href="/metrics" target="_blank" rel="noopener">打开 Prometheus 指标（/metrics）</a>
+              <button type="button" class="btn btn-secondary" id="btn-meta-refresh">刷新下方元数据</button>
+            </div>
+            <pre id="meta-json" class="log" style="margin-top:1rem;max-height:420px"></pre>
+          </div>
+        </div>
+
+        <!-- General -->
+        <div class="page" id="page-general">
+          <div class="section">
+            <h2>监听与 TLS</h2>
+            <p class="hint">UDP/TCP 为传统 DNS 端口；DoH 为 DNS over HTTPS；最后一项为管理后台与 REST API 监听地址。</p>
+            <div class="grid2">
+              <label class="field"><span class="key">DNS UDP 监听地址</span><span class="cfg-path">listen.udp</span><input type="text" id="listen-udp" /></label>
+              <label class="field"><span class="key">DNS TCP 监听地址</span><span class="cfg-path">listen.tcp</span><input type="text" id="listen-tcp" /></label>
+              <label class="field"><span class="key">DoH（DNS over HTTPS）监听地址</span><span class="cfg-path">listen.doh</span><input type="text" id="listen-doh" /></label>
+              <label class="field"><span class="key">管理后台与 REST API 端口</span><span class="cfg-path">listen.admin</span><input type="text" id="listen-admin" /></label>
+              <label class="field field-checkwrap">
+                <div class="check-row">
+                  <input type="checkbox" id="listen-doh-tls" />
+                  <div class="check-text">
+                    <span class="key">DoH 启用 TLS（HTTPS）</span>
+                    <span class="cfg-path">listen.doh_tls</span>
+                  </div>
+                </div>
+              </label>
+            </div>
+            <p class="hint" style="margin-top:0.75rem">DoH TLS 使用下方 <strong>PEM</strong>：可<strong>粘贴</strong>全文，或<strong>上传</strong> <code>.pem</code> / <code>.crt</code> / <code>.key</code> 文件填入文本框。保存后需<strong>重启</strong> DoH 监听生效。若仅在配置文件中填写 <code>listen.tls_cert</code> / <code>tls_key</code> 路径，控制台不会显示该路径，保存时也不会被清除。</p>
+            <label class="field"><span class="key">TLS 证书（PEM）</span><span class="cfg-path">listen.tls_cert_pem</span>
+              <div class="pem-file-row">
+                <input type="file" id="listen-tls-cert-file" accept=".pem,.crt,.cer,.txt,application/x-pem-file" />
+              </div>
+              <textarea id="listen-tls-cert-pem" rows="6" placeholder="-----BEGIN CERTIFICATE-----&#10;…&#10;-----END CERTIFICATE-----"></textarea>
+            </label>
+            <label class="field"><span class="key">TLS 私钥（PEM）</span><span class="cfg-path">listen.tls_key_pem</span>
+              <div class="pem-file-row">
+                <input type="file" id="listen-tls-key-file" accept=".pem,.key,.txt,application/x-pem-file" />
+              </div>
+              <textarea id="listen-tls-key-pem" rows="6" placeholder="-----BEGIN PRIVATE KEY-----&#10;…&#10;-----END PRIVATE KEY-----"></textarea>
+            </label>
+          </div>
+          <div class="section">
+            <h2>DNS 应答</h2>
+            <p class="hint">开启后对所有客户端生效：不再向外返回 IPv6 地址记录。</p>
+            <label class="field field-checkwrap">
+              <div class="check-row">
+                <input type="checkbox" id="resolver-disable-ipv6" />
+                <div class="check-text">
+                  <span class="key">禁用 IPv6（不返回 AAAA）</span>
+                  <span class="cfg-path">resolver.disable_ipv6</span>
+                </div>
+              </div>
+            </label>
+            <p class="hint"><code>AAAA</code> 查询仅返回无应答的 NOERROR（NODATA）；<code>A</code>、<code>CNAME</code> 等应答中的 AAAA 记录会被移除。保存后立即生效。</p>
+          </div>
+          <div class="section">
+            <h2>管理员账号</h2>
+            <p class="hint">登录用户名（默认 <code>admin</code>）。密码不在此显示；请用下方表单修改。可选填写脚本专用密钥：请求头携带 <code>X-API-Key</code> 即可调用 REST（与浏览器 Cookie 二选一）。</p>
+            <div class="grid2">
+              <label class="field"><span class="key">登录用户名</span><span class="cfg-path">admin.username</span><input type="text" id="admin-username" autocomplete="username" /></label>
+              <label class="field"><span class="key">脚本 API 密钥（可选）</span><span class="cfg-path">admin.api_key</span><input type="password" id="admin-api-key" autocomplete="off" /></label>
+            </div>
+            <h2 style="margin-top:1.25rem">修改登录密码</h2>
+            <p class="hint">至少 6 个字符，最长 72 字节。修改后立即写入配置文件。</p>
+            <div class="grid2">
+              <label class="field"><span class="key">当前密码</span><input type="password" id="admin-pwd-old" autocomplete="current-password" /></label>
+              <label class="field"><span class="key">新密码</span><input type="password" id="admin-pwd-new" autocomplete="new-password" /></label>
+            </div>
+            <div class="row-actions">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-change-pwd">更新密码</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="page" id="page-redis">
+          <div class="section">
+            <h2>Redis 连接</h2>
+            <p class="hint">修改地址或库编号后需<strong>重启进程</strong>才会建立新连接。</p>
+            <div class="grid2">
+              <label class="field"><span class="key">服务器地址与端口</span><span class="cfg-path">redis.addr</span><input type="text" id="redis-addr" placeholder="127.0.0.1:6379" /></label>
+              <label class="field"><span class="key">访问密码（无则留空）</span><span class="cfg-path">redis.password</span><input type="password" id="redis-password" autocomplete="off" /></label>
+              <label class="field"><span class="key">逻辑库编号（DB）</span><span class="cfg-path">redis.db</span><input type="number" id="redis-db" min="0" step="1" /></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="page" id="page-upstream">
+          <div class="section">
+            <h2>国内上游（CN）</h2>
+            <p class="hint">DoH 填「HTTPS 查询地址」列；纯 UDP 填「UDP 地址」列（如 223.5.5.5:53）。权重越大越常被选中。</p>
+            <table class="upstream" id="tbl-cn"><thead><tr><th class="w-name">名称</th><th class="w-url">DoH 地址（URL）</th><th class="w-addr">UDP 地址</th><th class="w-w">权重</th><th></th></tr></thead><tbody></tbody></table>
+            <div class="row-actions"><button type="button" class="btn btn-secondary btn-sm" id="add-cn">添加上游</button></div>
+          </div>
+          <div class="section">
+            <h2>海外上游（OUT）</h2>
+            <table class="upstream" id="tbl-out"><thead><tr><th class="w-name">名称</th><th class="w-url">DoH 地址（URL）</th><th class="w-addr">UDP 地址</th><th class="w-w">权重</th><th></th></tr></thead><tbody></tbody></table>
+            <div class="row-actions"><button type="button" class="btn btn-secondary btn-sm" id="add-out">添加上游</button></div>
+          </div>
+        </div>
+
+        <div class="page" id="page-resolver">
+          <div class="section">
+            <h2>解析器</h2>
+            <p class="hint">控制写入缓存的最长 TTL、上游超时与重试；「非白名单」指未命中白名单的域名。</p>
+            <div class="grid2">
+              <label class="field"><span class="key">缓存 TTL 上限（秒）</span><span class="cfg-path">resolver.max_cache_ttl_seconds</span><input type="number" id="res-max-ttl" min="1" step="1" /></label>
+              <label class="field"><span class="key">非白名单域名策略</span><span class="cfg-path">resolver.non_whitelist_action</span>
+                <select id="res-nw-action">
+                  <option value="nxdomain">返回 NXDOMAIN（域名不存在）</option>
+                  <option value="localhost">解析到本机（127.0.0.1 / ::1）</option>
+                </select>
+              </label>
+              <label class="field"><span class="key">上游查询超时（毫秒）</span><span class="cfg-path">resolver.query_timeout_ms</span><input type="number" id="res-timeout" min="1" step="1" /></label>
+              <label class="field"><span class="key">上游失败重试次数</span><span class="cfg-path">resolver.upstream_retries</span><input type="number" id="res-retries" min="1" step="1" /></label>
+            </div>
+          </div>
+          <div class="section">
+            <h2>客户端限速</h2>
+            <p class="hint">按客户端 IP（或 DoH 推导的标识）限制 QPS；突发为令牌桶允许的短时间峰值。</p>
+            <div class="grid2">
+              <label class="field"><span class="key">每 IP 每秒查询数（QPS）</span><span class="cfg-path">rate_limit.qps_per_ip</span><input type="number" id="rl-qps" min="0" step="0.1" /></label>
+              <label class="field"><span class="key">突发允许条数（令牌桶）</span><span class="cfg-path">rate_limit.burst</span><input type="number" id="rl-burst" min="1" step="1" /></label>
+            </div>
+          </div>
+          <div class="section">
+            <h2>缓存预热</h2>
+            <p class="hint">进程启动后异步预解析下列域名并写入 Redis。记录类型用英文逗号分隔，如 <code>A</code>、<code>AAAA</code>。</p>
+            <label class="field"><span class="key">预热域名（每行一个）</span><span class="cfg-path">warmup.domains</span><textarea id="warmup-domains" rows="4" placeholder="每行一个域名，例如 example.com"></textarea></label>
+            <label class="field"><span class="key">预热线记录类型</span><span class="cfg-path">warmup.qtypes</span><input type="text" id="warmup-qtypes" placeholder="A, AAAA" /></label>
+          </div>
+          <div class="section">
+            <h2>统计持久化（Redis）</h2>
+            <p class="hint">将仪表盘计数定时写入 Redis；间隔为 <code>0</code> 则关闭定时写入（启动时仍会尝试从 Redis 恢复）。变更后建议保存并<strong>重启</strong>以稳定周期。</p>
+            <div class="grid2">
+              <label class="field"><span class="key">写入间隔（秒，0 关闭）</span><span class="cfg-path">stats.persist_interval_seconds</span><input type="number" id="stats-persist-sec" min="0" step="1" /></label>
+              <label class="field"><span class="key">统计在 Redis 中的键名</span><span class="cfg-path">stats.redis_key</span><input type="text" id="stats-redis-key" /></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="page" id="page-mapper">
+          <div class="section">
+            <h2>VIP → 真实 IP 映射</h2>
+            <p class="hint">将 VPN 虚拟 IP 映射为用于 ECS 的公网 IP。可选 HTTP 接口；映射结果会缓存到 Redis，有效期见下方 TTL。若客户端已是公网 IP，将直接使用，不查映射。</p>
+            <p class="hint">映射 API 留空时：Redis 未命中后使用<strong>本机公网出口 IP</strong>（由下方探测 URL 获取，默认 ipify）写入 Redis。</p>
+            <p class="hint"><strong>默认 ECS</strong>：发往国内上游时，若 VIP 无法解析出映射/公网 IP，则用「默认国内 ECS」作为 EDNS Client Subnet；发往海外上游时，在客户端未带 ECS 且映射 IP 也不可用时，用「默认全球 ECS」（仍优先使用客户端 ECS 与映射得到的 IP）。</p>
+            <div class="grid2">
+              <label class="field" style="grid-column:1/-1"><span class="key">映射 API 地址（GET，查询参数 ip）</span><span class="cfg-path">mapper.api_url</span><input type="text" id="mapper-url" placeholder="留空则用本机公网 IP" /></label>
+              <label class="field" style="grid-column:1/-1"><span class="key">本机公网 IP 探测 URL</span><span class="cfg-path">mapper.public_ip_probe_url</span><input type="text" id="mapper-probe-url" placeholder="https://api.ipify.org" /></label>
+              <label class="field"><span class="key">映射缓存 TTL（秒）</span><span class="cfg-path">mapper.ttl_seconds</span><input type="number" id="mapper-ttl" min="1" step="1" /></label>
+              <label class="field" style="grid-column:1/-1"><span class="key">默认国内 ECS（公网 IPv4/IPv6）</span><span class="cfg-path">mapper.default_cn_ecs</span><input type="text" id="mapper-cn-ecs" placeholder="无映射时发往 cn_dns 的 ECS 源地址" /></label>
+              <label class="field" style="grid-column:1/-1"><span class="key">默认全球 ECS（公网 IPv4/IPv6）</span><span class="cfg-path">mapper.default_out_ecs</span><input type="text" id="mapper-out-ecs" placeholder="发往 out_dns 时的 ECS 回退地址" /></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="page" id="page-geoip">
+          <div class="section">
+            <h2>中国 IP 数据源</h2>
+            <div class="geo-loaded-line" id="geo-loaded-line">
+              <span>已加载 <strong id="geo-loaded-total">—</strong> 条 CIDR（IPv4 <strong id="geo-loaded-v4">—</strong>，IPv6 <strong id="geo-loaded-v6">—</strong>）</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="geo-cidr-detail">详情</button>
+            </div>
+            <p class="hint">CIDR 与 GEOIP.dat 的下载地址<strong>分别保存</strong>；切换「列表源格式」时只切换当前使用的地址。定时拉取周期变更需<strong>重启</strong>；保存后新地址在下次手动刷新或定时任务时生效。</p>
+            <div class="grid2">
+              <label class="field" style="grid-column:1/-1"><span class="key">列表源格式</span><span class="cfg-path">geoip.source_format</span>
+                <select id="geo-source-format">
+                  <option value="cidr">CIDR IP 段（每行一条，如 1.0.0.0/8）</option>
+                  <option value="geoip_dat">GEOIP.dat（V2Ray / Xray 的 geoip.dat 二进制，仅加载国家码 CN）</option>
+                </select>
+              </label>
+              <label class="field geo-url-row" id="geo-url-row-cidr" style="grid-column:1/-1"><span class="key">CIDR 列表下载地址</span><span class="cfg-path">geoip.chnroute_url</span><input type="text" id="geo-url-cidr" placeholder="每行 CIDR 的文本列表，默认 ispip" /></label>
+              <label class="field geo-url-row" id="geo-url-row-dat" style="grid-column:1/-1;display:none"><span class="key">GEOIP.dat 下载地址</span><span class="cfg-path">geoip.geoip_dat_url</span><input type="text" id="geo-url-dat" placeholder="V2Ray 格式 geoip.dat / cn.dat，默认 v2fly cn.dat" /></label>
+              <label class="field"><span class="key">后台自动刷新间隔（分钟）</span><span class="cfg-path">geoip.refresh_minutes</span><input type="number" id="geo-refresh-minutes" min="1" step="1" /></label>
+            </div>
+            <div class="row-actions" style="margin-top:1rem">
+              <button type="button" class="btn btn-secondary" id="geo-refresh-now">立即刷新中国 IP 库</button>
+            </div>
+            <pre id="geo-refresh-status" class="log" style="margin-top:0.75rem;min-height:2.5rem" aria-live="polite"></pre>
+          </div>
+        </div>
+
+        <div class="page" id="page-security">
+          <div class="section">
+            <h2>域名黑名单</h2>
+            <p class="hint">每行一个域名（与 DNS 查询名一致、小写）。命中后应答与<strong>解析 → 非白名单域名策略</strong>一致（NXDOMAIN 或解析到本机回环）。保存后写入 <span class="cfg-path" style="display:inline">security.blacklist</span>。</p>
+            <textarea id="sec-blacklist" placeholder="每行一条，例如 ads.example.com"></textarea>
+          </div>
+          <div class="section">
+            <h2>DoH 访问控制</h2>
+            <p class="hint">开启后，DoH 请求须在 <code>Authorization: Bearer …</code> 中携带下方令牌。</p>
+            <div class="grid2">
+              <label class="field field-checkwrap">
+                <div class="check-row">
+                  <input type="checkbox" id="doh-auth-en" />
+                  <div class="check-text">
+                    <span class="key">要求 DoH 携带 Bearer Token</span>
+                    <span class="cfg-path">security.doh_auth.enabled</span>
+                  </div>
+                </div>
+              </label>
+              <label class="field" style="grid-column:1/-1"><span class="key">Bearer 令牌（密钥）</span><span class="cfg-path">security.doh_auth.bearer_token</span><input type="password" id="doh-auth-tok" autocomplete="off" /></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="page" id="page-whitelist">
+          <div class="section">
+            <h2>白名单（仅 OUT 解析）</h2>
+            <p class="hint">支持 <code>example.com</code> 与 <code>*.google.com</code>。列表<strong>每页 20 条</strong>，可按子串查询；「删除全部匹配」会删掉 Redis 中<strong>所有</strong>包含该关键词的规则；「一键清空」会删除<strong>全部</strong>白名单条目。上方输入框仍用于<strong>批量添加 / 按行移除</strong>。</p>
+            <textarea id="wl-input" placeholder="google.com&#10;*.openai.com"></textarea>
+            <div class="row-actions">
+              <button type="button" class="btn btn-primary" id="wl-add">添加到 Redis</button>
+              <button type="button" class="btn btn-danger" id="wl-remove">从 Redis 移除（输入框中的行）</button>
+              <button type="button" class="btn btn-danger" id="wl-clear-all" title="删除 Redis 白名单集合中的全部规则">一键清空</button>
+              <button type="button" class="btn btn-secondary" id="wl-refresh">刷新当前页</button>
+            </div>
+            <div class="row-actions wl-toolbar" style="flex-wrap:wrap;margin-top:0.85rem;gap:0.5rem;align-items:flex-end">
+              <label class="field" style="margin:0;flex:1;min-width:12rem">
+                <span class="key">查询（子串，忽略大小写）</span>
+                <input type="search" id="wl-search" placeholder="例如 google 或 *.open" autocomplete="off" />
+              </label>
+              <button type="button" class="btn btn-secondary btn-sm" id="wl-search-run">查询</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="wl-search-clear">清空查询</button>
+              <button type="button" class="btn btn-danger btn-sm" id="wl-delete-query" disabled title="删除当前查询匹配的全部规则">删除全部匹配</button>
+            </div>
+            <div class="row-actions" style="margin-top:0.5rem;flex-wrap:wrap;gap:0.5rem;align-items:center">
+              <span id="wl-page-info" style="font-size:0.85rem;color:var(--text-muted)">—</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="wl-page-prev" disabled>上一页</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="wl-page-next" disabled>下一页</button>
+            </div>
+            <div id="wl-list" class="log wl-list-panel" aria-live="polite">加载中…</div>
+          </div>
+        </div>
+
+        <div class="page" id="page-subscribe">
+          <div class="section">
+            <h2>白名单订阅</h2>
+            <p class="hint">每行一个订阅 URL；修改后请先点右上角<strong>保存并应用</strong>，立即刷新将使用<strong>已保存</strong>的地址。定时拉取周期变更需<strong>重启进程</strong>后生效。</p>
+            <div class="sub-agh-card">
+              <div class="sub-agh-head">
+                <div class="sub-agh-title">订阅状态</div>
+                <button type="button" class="btn btn-primary" id="btn-wl-sub-pull">立即刷新订阅</button>
+              </div>
+              <div class="sub-agh-grid">
+                <div class="sub-agh-stat">
+                  <span class="sn" id="wl-sub-total">—</span>
+                  <span class="sl">Redis 规则总数<br />（当前白名单集合）</span>
+                </div>
+                <div class="sub-agh-stat">
+                  <span class="sn" id="wl-sub-parsed">—</span>
+                  <span class="sl">本次从订阅解析<br />到的规则条数</span>
+                </div>
+                <div class="sub-agh-stat">
+                  <span class="sn" id="wl-sub-added">—</span>
+                  <span class="sl">本次新写入<br />（此前集合中未有）</span>
+                </div>
+                <div class="sub-agh-stat">
+                  <span class="sn" id="wl-sub-urls-ok">—</span>
+                  <span class="sl">成功拉取的<br />订阅源 / 已配置</span>
+                </div>
+              </div>
+              <div class="sub-agh-meta" id="wl-sub-meta">上次刷新：尚未在本机执行</div>
+              <div class="sub-agh-err" id="wl-sub-err"></div>
+            </div>
+            <h2 style="margin-top:1.25rem">订阅 URL</h2>
+            <textarea id="wl-sub-urls" placeholder="每行一个订阅地址（HTTPS）"></textarea>
+            <div class="grid2" style="margin-top:0.75rem">
+              <label class="field"><span class="key">定时拉取订阅间隔（分钟）</span><span class="cfg-path">whitelist.refresh_minutes</span><input type="number" id="wl-sub-min" min="1" step="1" /></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="page page-full" id="page-cache">
+          <div class="section">
+            <h2>DNS 缓存列表</h2>
+            <p class="hint">使用 SCAN 列出匹配键（大量键时首次加载可能较慢）。TTL：<code>-1</code> 表示无过期；摘要为解析后的应答记录。</p>
+            <div class="grid2" style="margin-bottom:0.75rem">
+              <label class="field" style="grid-column:1/-1"><span class="key">键匹配模式（通配符）</span><span class="cfg-path">pattern</span><input type="text" id="cache-pattern" placeholder="dns:*" /></label>
+            </div>
+            <div class="cache-list-toolbar">
+              <span id="cache-total-label" style="font-size:0.88rem;color:var(--text-muted)">共 <strong id="cache-total">—</strong> 条</span>
+              <label class="field">
+                <span class="key">每页</span>
+                <select id="cache-per-page">
+                  <option value="20" selected>20</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="500">500</option>
+                </select>
+              </label>
+              <button type="button" class="btn btn-secondary btn-sm" id="cache-list-refresh">刷新列表</button>
+            </div>
+            <div class="cache-table-wrap">
+              <div id="cache-list-empty" class="log-empty" style="padding:1.5rem;text-align:center;color:var(--text-muted)">暂无匹配键，或点击「刷新列表」</div>
+              <table class="cache-list hidden" id="cache-list-table" aria-label="DNS 缓存条目">
+                <thead>
+                  <tr>
+                    <th>Redis 键</th>
+                    <th class="cache-num">TTL</th>
+                    <th>内容摘要</th>
+                    <th class="cache-num" title="Redis 中 base64 字符串字符数">值长度</th>
+                  </tr>
+                </thead>
+                <tbody id="cache-list-tbody"></tbody>
+              </table>
+            </div>
+            <div class="cache-pager">
+              <button type="button" class="btn btn-secondary btn-sm" id="cache-page-prev" disabled>上一页</button>
+              <span id="cache-page-info" style="font-size:0.85rem;color:var(--text-muted)">—</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="cache-page-next" disabled>下一页</button>
+            </div>
+          </div>
+          <div class="section">
+            <h2>清理 DNS 缓存</h2>
+            <p class="hint">删除上方模式中<strong>所有</strong>匹配键（与列表使用同一通配符）。默认 <code>dns:*</code>。</p>
+            <div class="row-actions">
+              <button type="button" class="btn btn-danger" id="cache-flush">删除匹配键</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="page page-full" id="page-logs">
+          <div class="section">
+            <h2>查询日志持久化</h2>
+            <p class="hint"><strong>max_entries &gt; 0</strong> 时写入 Redis 列表（重启不丢，约保留最近 N 条）；<strong>0</strong> 时仅存进程内约 500 条，重启清空。保存配置后生效。</p>
+            <div class="grid2">
+              <label class="field" style="grid-column:1/-1"><span class="key">Redis 键名</span><span class="cfg-path">query_log.redis_key</span><input type="text" id="query-log-key" /></label>
+              <label class="field"><span class="key">保留条数上限</span><span class="cfg-path">query_log.max_entries</span><input type="number" id="query-log-max" min="0" step="1" /></label>
+            </div>
+          </div>
+          <div class="section">
+            <h2>查询日志</h2>
+            <p class="hint">时间、请求（域名 + 类型）、响应（记录摘要与路由）、客户端（源地址 / 映射 IP / ECS）。<strong>每页内最新记录在上方</strong>；支持分页拉取，减轻大量日志时的卡顿。可按域名、源 IP、映射 IP 或关键词筛选（与关系）。<strong>一键清空</strong>会删除当前后端中的全部查询日志（Redis 列表或进程内缓冲），不可撤销。</p>
+            <div class="grid2" style="margin-top:0.35rem">
+              <label class="field"><span class="key">域名</span><input type="text" id="logs-filter-domain" placeholder="模糊匹配" autocomplete="off" /></label>
+              <label class="field"><span class="key">源 IP</span><input type="text" id="logs-filter-vip" placeholder="客户端源地址" autocomplete="off" /></label>
+              <label class="field"><span class="key">映射 IP</span><input type="text" id="logs-filter-real" placeholder="映射后 IP" autocomplete="off" /></label>
+              <label class="field" style="grid-column:1/-1"><span class="key">关键词</span><input type="text" id="logs-filter-q" placeholder="全文模糊（域名、IP、类型、摘要、路由等）" autocomplete="off" /></label>
+            </div>
+            <div class="row-actions" style="margin-top:0.25rem;flex-wrap:wrap;gap:0.5rem;align-items:center">
+              <button type="button" class="btn btn-primary btn-sm" id="logs-filter-apply">查询</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="logs-filter-clear">清空</button>
+            </div>
+            <div class="row-actions" style="flex-wrap:wrap;gap:0.5rem;align-items:center">
+              <span id="logs-total-label" style="font-size:0.88rem;color:var(--text-muted)">—</span>
+              <label class="field" style="margin:0">
+                <span class="key">每页</span>
+                <select id="logs-per-page">
+                  <option value="20" selected>20</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <button type="button" class="btn btn-secondary btn-sm" id="logs-refresh">刷新</button>
+              <button type="button" class="btn btn-danger btn-sm" id="logs-clear-all">一键清空日志</button>
+            </div>
+            <div class="row-actions" style="margin-top:0.35rem;flex-wrap:wrap;gap:0.5rem;align-items:center">
+              <button type="button" class="btn btn-secondary btn-sm" id="logs-page-prev" disabled>上一页</button>
+              <span id="logs-page-info" style="font-size:0.85rem;color:var(--text-muted)">—</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="logs-page-next" disabled>下一页</button>
+            </div>
+            <div class="log-table-wrap" id="logs-wrap">
+              <div class="log-empty" id="logs-empty">暂无查询记录</div>
+              <table class="log-table hidden" id="logs-table" aria-label="查询日志">
+                <thead>
+                  <tr>
+                    <th class="log-col-time">时间</th>
+                    <th class="log-col-req">请求</th>
+                    <th class="log-col-resp">响应</th>
+                    <th class="log-col-client">客户端</th>
+                  </tr>
+                </thead>
+                <tbody id="logs-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="page" id="page-system">
+          <div class="section">
+            <h2>从磁盘加载</h2>
+            <p class="hint">重新读取 YAML（例如你用编辑器改了文件），不经过界面表单。</p>
+            <div class="row-actions">
+              <button type="button" class="btn btn-primary" id="cfg-reload">热加载 config.yaml</button>
+            </div>
+            <pre id="sys-status" class="log" style="margin-top:1rem;min-height:3rem"></pre>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <div id="geo-cidr-modal" class="login-gate hidden" aria-hidden="true" role="dialog" aria-labelledby="geo-modal-title">
+    <div class="login-card geo-modal-panel">
+      <h2 id="geo-modal-title">中国 IP 库（全部 CIDR）</h2>
+      <p class="hint" style="margin:0.25rem 0 0">与最近一次成功拉取一致；CIDR 文本按<strong>源行</strong>列出。GEOIP.dat 源为 protobuf 内 <strong>CN</strong> 网段展开后的 CIDR。</p>
+      <p class="hint" style="margin:0.35rem 0 0">共 <strong id="geo-modal-total">—</strong> 条 · IPv4 <span id="geo-modal-v4">—</span> · IPv6 <span id="geo-modal-v6">—</span></p>
+      <div class="row-actions" style="margin-top:0.65rem;flex-wrap:wrap;gap:0.5rem">
+        <label class="field" style="margin:0"><span class="key">每页</span>
+          <select id="geo-modal-per">
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="500">500</option>
+          </select>
+        </label>
+        <button type="button" class="btn btn-secondary btn-sm" id="geo-modal-prev">上一页</button>
+        <span id="geo-modal-pageinfo" style="font-size:0.85rem;color:var(--text-muted);align-self:center">—</span>
+        <button type="button" class="btn btn-secondary btn-sm" id="geo-modal-next">下一页</button>
+        <button type="button" class="btn btn-primary btn-sm" id="geo-modal-close">关闭</button>
+      </div>
+      <div class="geo-modal-scroll">
+        <table class="geo-cidr-table" aria-label="CIDR 列表">
+          <thead><tr><th>#</th><th>CIDR</th></tr></thead>
+          <tbody id="geo-modal-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="login-gate" class="login-gate" aria-hidden="false">
+    <div class="login-card">
+      <h2>管理员登录</h2>
+      <p class="hint">默认用户名 <code>admin</code>，初始密码 <code>admin</code>。首次部署后请尽快在「常规设置」中修改密码。</p>
+      <label class="field field-row"><span class="key">用户名</span><input type="text" id="login-user" autocomplete="username" /></label>
+      <label class="field field-row"><span class="key">密码</span><input type="password" id="login-pass" autocomplete="current-password" /></label>
+      <div class="row-actions" style="margin-top:1.25rem">
+        <button type="button" class="btn btn-primary" id="login-submit">登录</button>
+      </div>
+      <p class="login-err" id="login-err"></p>
+    </div>
+  </div>
+
+  <script>
+(function () {
+  const titles = {
+    dash: '仪表盘', general: '常规设置', redis: 'Redis 连接', upstream: '上游 DNS',
+    resolver: '解析与限速', mapper: 'VIP 映射', geoip: '中国 IP 库（GeoIP）',
+    security: '安全与黑名单', whitelist: '白名单', subscribe: '白名单订阅',
+    cache: 'DNS 缓存', logs: '查询日志', system: '从磁盘重载', monitor: '监控面板'
+  };
+  let cfg = null;
+  let dashTimer = null;
+  let cacheListPage = 1;
+  let cacheListMeta = { total: 0, perPage: 20 };
+  let geoModalPage = 1;
+  let wlListPage = 1;
+  let wlListQuery = '';
+  let wlLastMeta = { total_in_set: 0, total_matched: 0, per_page: 20 };
+  let logsPage = 1;
+  let logsListMeta = { total: 0, totalAll: 0, perPage: 20, hasFilters: false };
+
+  function headers(json) {
+    const h = {};
+    if (json) h['Content-Type'] = 'application/json';
+    return h;
+  }
+
+  function req(init) {
+    return { credentials: 'include', ...(init || {}) };
+  }
+
+  function toast(msg, ok) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast show ' + (ok ? 'ok' : 'err');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.classList.remove('show'); }, 4200);
+  }
+
+  function showPage(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('aside nav button').forEach(b => b.classList.remove('active'));
+    const page = document.getElementById('page-' + id);
+    if (page) page.classList.add('active');
+    const btn = document.querySelector('aside nav button[data-page="' + id + '"]');
+    if (btn) btn.classList.add('active');
+    document.getElementById('page-title').textContent = titles[id] || id;
+    if (id === 'logs') {
+      queueMicrotask(() => loadQueryLogs({ page: 1 }));
+    }
+    if (id === 'dash') {
+      queueMicrotask(() => refreshDashStats());
+    }
+    if (id === 'subscribe') {
+      queueMicrotask(() => refreshWhitelistSubscribePanel());
+    }
+    if (id === 'monitor') {
+      queueMicrotask(() => refreshMeta());
+    }
+    if (id === 'cache') {
+      queueMicrotask(() => loadCacheList(1));
+    }
+    if (id === 'geoip') {
+      queueMicrotask(() => {
+        syncGeoUrlRows();
+        loadGeoBannerStats();
+      });
+    }
+    if (id === 'whitelist') {
+      queueMicrotask(() => loadWhitelist());
+    }
+  }
+
+  document.querySelectorAll('aside nav button[data-page]').forEach(btn => {
+    btn.addEventListener('click', () => showPage(btn.dataset.page));
+  });
+  document.getElementById('geo-source-format').addEventListener('change', syncGeoUrlRows);
+
+  function wirePemFileInput(fileId, textareaId) {
+    const fin = document.getElementById(fileId);
+    const ta = document.getElementById(textareaId);
+    if (!fin || !ta) return;
+    fin.addEventListener('change', () => {
+      const f = fin.files && fin.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        ta.value = String(reader.result || '');
+        toast('已读入：' + f.name, true);
+      };
+      reader.onerror = () => toast('读取文件失败', false);
+      reader.readAsText(f);
+      fin.value = '';
+    });
+  }
+  wirePemFileInput('listen-tls-cert-file', 'listen-tls-cert-pem');
+  wirePemFileInput('listen-tls-key-file', 'listen-tls-key-pem');
+
+  function emptyRow() {
+    return { name: '', url: '', address: '', weight: 1 };
+  }
+
+  const UPSTREAM_ROW_HTML =
+    '<td><input type="text" class="u-name" placeholder="显示名称" /></td>' +
+    '<td><input type="text" class="u-url" placeholder="https://…/dns-query" /></td>' +
+    '<td><input type="text" class="u-addr" placeholder="如 223.5.5.5:53" /></td>' +
+    '<td><input type="number" class="u-w" min="1" step="1" /></td>' +
+    '<td><button type="button" class="btn btn-danger btn-sm u-del">删除</button></td>';
+
+  function bindUpstreamRow(tr, tbody) {
+    tr.querySelector('.u-del').onclick = () => {
+      tr.remove();
+      if (!tbody.children.length) renderUpstreamTable(tbody, [emptyRow()]);
+    };
+  }
+
+  function appendUpstreamRow(tbody) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = UPSTREAM_ROW_HTML;
+    tr.querySelector('.u-w').value = '1';
+    bindUpstreamRow(tr, tbody);
+    tbody.appendChild(tr);
+  }
+
+  function renderUpstreamTable(tbody, rows) {
+    tbody.innerHTML = '';
+    (rows && rows.length ? rows : [emptyRow()]).forEach((row) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = UPSTREAM_ROW_HTML;
+      tr.querySelector('.u-name').value = row.name || '';
+      tr.querySelector('.u-url').value = row.url || '';
+      tr.querySelector('.u-addr').value = row.address || '';
+      tr.querySelector('.u-w').value = row.weight > 0 ? row.weight : 1;
+      bindUpstreamRow(tr, tbody);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function syncGeoUrlRows() {
+    const sf = document.getElementById('geo-source-format').value;
+    const cidrRow = document.getElementById('geo-url-row-cidr');
+    const datRow = document.getElementById('geo-url-row-dat');
+    if (!cidrRow || !datRow) return;
+    const isDat = sf === 'geoip_dat';
+    cidrRow.style.display = isDat ? 'none' : '';
+    datRow.style.display = isDat ? '' : 'none';
+  }
+
+  function readUpstreamTable(tbody) {
+    const out = [];
+    tbody.querySelectorAll('tr').forEach(tr => {
+      const name = tr.querySelector('.u-name').value.trim();
+      const url = tr.querySelector('.u-url').value.trim();
+      const address = tr.querySelector('.u-addr').value.trim();
+      const w = parseInt(tr.querySelector('.u-w').value, 10) || 1;
+      if (!name && !url && !address) return;
+      out.push({ name, url, address, weight: w });
+    });
+    return out;
+  }
+
+  function formToConfig() {
+    if (!cfg) cfg = {};
+    cfg.listen = cfg.listen || {};
+    cfg.listen.udp = document.getElementById('listen-udp').value.trim();
+    cfg.listen.tcp = document.getElementById('listen-tcp').value.trim();
+    cfg.listen.doh = document.getElementById('listen-doh').value.trim();
+    cfg.listen.admin = document.getElementById('listen-admin').value.trim();
+    cfg.listen.doh_tls = document.getElementById('listen-doh-tls').checked;
+    cfg.listen.tls_cert = '';
+    cfg.listen.tls_key = '';
+    cfg.listen.tls_cert_pem = document.getElementById('listen-tls-cert-pem').value;
+    cfg.listen.tls_key_pem = document.getElementById('listen-tls-key-pem').value;
+
+    cfg.redis = cfg.redis || {};
+    cfg.redis.addr = document.getElementById('redis-addr').value.trim();
+    cfg.redis.password = document.getElementById('redis-password').value;
+    const dbn = parseInt(document.getElementById('redis-db').value, 10);
+    cfg.redis.db = Number.isFinite(dbn) ? dbn : 0;
+
+    cfg.cn_dns = readUpstreamTable(document.querySelector('#tbl-cn tbody'));
+    cfg.out_dns = readUpstreamTable(document.querySelector('#tbl-out tbody'));
+
+    cfg.mapper = cfg.mapper || {};
+    cfg.mapper.api_url = document.getElementById('mapper-url').value.trim();
+    cfg.mapper.public_ip_probe_url = document.getElementById('mapper-probe-url').value.trim();
+    cfg.mapper.ttl_seconds = parseInt(document.getElementById('mapper-ttl').value, 10) || 300;
+    cfg.mapper.default_cn_ecs = document.getElementById('mapper-cn-ecs').value.trim();
+    cfg.mapper.default_out_ecs = document.getElementById('mapper-out-ecs').value.trim();
+
+    cfg.resolver = cfg.resolver || {};
+    cfg.resolver.max_cache_ttl_seconds = parseInt(document.getElementById('res-max-ttl').value, 10) || 3600;
+    cfg.resolver.non_whitelist_action = document.getElementById('res-nw-action').value;
+    cfg.resolver.query_timeout_ms = parseInt(document.getElementById('res-timeout').value, 10) || 3000;
+    cfg.resolver.upstream_retries = parseInt(document.getElementById('res-retries').value, 10) || 2;
+    cfg.resolver.disable_ipv6 = document.getElementById('resolver-disable-ipv6').checked;
+
+    cfg.geoip = cfg.geoip || {};
+    cfg.geoip.chnroute_url = document.getElementById('geo-url-cidr').value.trim();
+    cfg.geoip.geoip_dat_url = document.getElementById('geo-url-dat').value.trim();
+    cfg.geoip.refresh_minutes = parseInt(document.getElementById('geo-refresh-minutes').value, 10) || 1440;
+    {
+      const sf = document.getElementById('geo-source-format').value;
+      cfg.geoip.source_format = (sf === 'geoip_dat') ? 'geoip_dat' : 'cidr';
+    }
+
+    cfg.rate_limit = cfg.rate_limit || {};
+    cfg.rate_limit.qps_per_ip = parseFloat(document.getElementById('rl-qps').value) || 500;
+    cfg.rate_limit.burst = parseInt(document.getElementById('rl-burst').value, 10) || 1000;
+
+    cfg.warmup = cfg.warmup || {};
+    cfg.warmup.domains = document.getElementById('warmup-domains').value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    cfg.warmup.qtypes = document.getElementById('warmup-qtypes').value.split(/[,，]/).map(s => s.trim().toUpperCase()).filter(Boolean);
+
+    cfg.stats = cfg.stats || {};
+    const psec = parseInt(document.getElementById('stats-persist-sec').value, 10);
+    cfg.stats.persist_interval_seconds = Number.isFinite(psec) ? psec : 0;
+    cfg.stats.redis_key = document.getElementById('stats-redis-key').value.trim();
+
+    cfg.query_log = cfg.query_log || {};
+    cfg.query_log.redis_key = document.getElementById('query-log-key').value.trim();
+    const qlm = parseInt(document.getElementById('query-log-max').value, 10);
+    cfg.query_log.max_entries = Number.isFinite(qlm) ? qlm : 20000;
+
+    cfg.security = cfg.security || {};
+    cfg.security.blacklist = document.getElementById('sec-blacklist').value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    cfg.security.doh_auth = cfg.security.doh_auth || {};
+    cfg.security.doh_auth.enabled = document.getElementById('doh-auth-en').checked;
+    cfg.security.doh_auth.bearer_token = document.getElementById('doh-auth-tok').value;
+
+    cfg.whitelist = cfg.whitelist || {};
+    cfg.whitelist.subscribe_urls = document.getElementById('wl-sub-urls').value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    cfg.whitelist.refresh_minutes = parseInt(document.getElementById('wl-sub-min').value, 10) || 60;
+
+    cfg.admin = cfg.admin || {};
+    cfg.admin.username = document.getElementById('admin-username').value.trim();
+    cfg.admin.api_key = document.getElementById('admin-api-key').value;
+    return cfg;
+  }
+
+  function configToForm(c) {
+    cfg = JSON.parse(JSON.stringify(c));
+    document.getElementById('listen-udp').value = c.listen?.udp ?? '';
+    document.getElementById('listen-tcp').value = c.listen?.tcp ?? '';
+    document.getElementById('listen-doh').value = c.listen?.doh ?? '';
+    document.getElementById('listen-admin').value = c.listen?.admin ?? '';
+    document.getElementById('listen-doh-tls').checked = !!c.listen?.doh_tls;
+    document.getElementById('listen-tls-cert-pem').value = c.listen?.tls_cert_pem ?? '';
+    document.getElementById('listen-tls-key-pem').value = c.listen?.tls_key_pem ?? '';
+
+    document.getElementById('redis-addr').value = c.redis?.addr ?? '';
+    document.getElementById('redis-password').value = c.redis?.password ?? '';
+    document.getElementById('redis-db').value = c.redis?.db ?? 0;
+
+    renderUpstreamTable(document.querySelector('#tbl-cn tbody'), c.cn_dns);
+    renderUpstreamTable(document.querySelector('#tbl-out tbody'), c.out_dns);
+
+    document.getElementById('mapper-url').value = c.mapper?.api_url ?? '';
+    document.getElementById('mapper-probe-url').value = c.mapper?.public_ip_probe_url ?? '';
+    document.getElementById('mapper-ttl').value = c.mapper?.ttl_seconds ?? 300;
+    document.getElementById('mapper-cn-ecs').value = c.mapper?.default_cn_ecs ?? '';
+    document.getElementById('mapper-out-ecs').value = c.mapper?.default_out_ecs ?? '';
+
+    document.getElementById('res-max-ttl').value = c.resolver?.max_cache_ttl_seconds ?? 3600;
+    document.getElementById('res-nw-action').value = (c.resolver?.non_whitelist_action === 'localhost') ? 'localhost' : 'nxdomain';
+    document.getElementById('res-timeout').value = c.resolver?.query_timeout_ms ?? 3000;
+    document.getElementById('res-retries').value = c.resolver?.upstream_retries ?? 2;
+    document.getElementById('resolver-disable-ipv6').checked = !!c.resolver?.disable_ipv6;
+
+    document.getElementById('geo-url-cidr').value = c.geoip?.chnroute_url ?? '';
+    document.getElementById('geo-url-dat').value = c.geoip?.geoip_dat_url ?? '';
+    document.getElementById('geo-refresh-minutes').value = c.geoip?.refresh_minutes ?? 1440;
+    document.getElementById('geo-source-format').value = (c.geoip?.source_format === 'geoip_dat') ? 'geoip_dat' : 'cidr';
+    syncGeoUrlRows();
+
+    document.getElementById('rl-qps').value = c.rate_limit?.qps_per_ip ?? 500;
+    document.getElementById('rl-burst').value = c.rate_limit?.burst ?? 1000;
+
+    document.getElementById('warmup-domains').value = (c.warmup?.domains || []).join('\n');
+    document.getElementById('warmup-qtypes').value = (c.warmup?.qtypes || []).join(', ');
+    document.getElementById('stats-persist-sec').value = c.stats?.persist_interval_seconds ?? 0;
+    document.getElementById('stats-redis-key').value = c.stats?.redis_key ?? '';
+
+    document.getElementById('query-log-key').value = c.query_log?.redis_key ?? 'vpndns:querylog';
+    {
+      const ql = c.query_log?.max_entries;
+      document.getElementById('query-log-max').value = (typeof ql === 'number') ? ql : 20000;
+    }
+
+    document.getElementById('sec-blacklist').value = (c.security?.blacklist || []).join('\n');
+    document.getElementById('doh-auth-en').checked = !!c.security?.doh_auth?.enabled;
+    document.getElementById('doh-auth-tok').value = c.security?.doh_auth?.bearer_token ?? '';
+
+    document.getElementById('wl-sub-urls').value = (c.whitelist?.subscribe_urls || []).join('\n');
+    document.getElementById('wl-sub-min').value = c.whitelist?.refresh_minutes ?? 60;
+
+    document.getElementById('admin-username').value = c.admin?.username ?? 'admin';
+    document.getElementById('admin-api-key').value = c.admin?.api_key ?? '';
+  }
+
+  async function loadConfig() {
+    const r = await fetch('/api/v1/config', req({ headers: headers(false) }));
+    if (!r.ok) {
+      toast('读取配置失败: ' + (await r.text()), false);
+      return;
+    }
+    const data = await r.json();
+    configToForm(data);
+    toast('已加载当前配置', true);
+  }
+
+  async function saveConfig() {
+    const body = formToConfig();
+    const r = await fetch('/api/v1/config', req({
+      method: 'PUT',
+      headers: headers(true),
+      body: JSON.stringify(body)
+    }));
+    if (!r.ok) {
+      toast('保存失败: ' + (await r.text()), false);
+      return;
+    }
+    toast('已保存并应用（监听/Redis 等见说明）', true);
+    await loadConfig();
+  }
+
+  function fmtCount(n) {
+    if (n == null || Number.isNaN(Number(n))) return '—';
+    return Number(n).toLocaleString('zh-CN');
+  }
+
+  function formatUptime(sec) {
+    sec = Math.max(0, Math.floor(Number(sec) || 0));
+    const d = Math.floor(sec / 86400);
+    const h = Math.floor((sec % 86400) / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    const parts = [];
+    if (d) parts.push(d + ' 天');
+    if (d || h) parts.push(h + ' 小时');
+    parts.push(m + ' 分 ' + s + ' 秒');
+    return parts.join(' ');
+  }
+
+  async function checkHealth() {
+    const pill = document.getElementById('health-pill');
+    const st = document.getElementById('st-health');
+    try {
+      const r = await fetch('/api/v1/health', req({}));
+      const ok = r.ok;
+      pill.textContent = ok ? '运行中' : '异常';
+      if (st) st.textContent = ok ? '正常' : '失败';
+      pill.style.background = ok ? 'var(--agh-green-glow)' : '#fde8e8';
+      pill.style.color = ok ? 'var(--agh-green-dim)' : 'var(--danger)';
+    } catch (e) {
+      pill.textContent = '离线';
+      if (st) st.textContent = '—';
+    }
+  }
+
+  async function refreshDashStats() {
+    const pill = document.getElementById('health-pill');
+    const stHealth = document.getElementById('st-health');
+    try {
+      const [rs, rh] = await Promise.all([
+        fetch('/api/v1/stats', req({ headers: headers(false) })),
+        fetch('/api/v1/health', req({}))
+      ]);
+      const ok = rh.ok;
+      pill.textContent = ok ? '运行中' : '异常';
+      pill.style.background = ok ? 'var(--agh-green-glow)' : '#fde8e8';
+      pill.style.color = ok ? 'var(--agh-green-dim)' : 'var(--danger)';
+      if (stHealth) stHealth.textContent = ok ? '正常' : '失败';
+
+      if (!rs.ok) {
+        return;
+      }
+      const s = await rs.json();
+      document.getElementById('dash-dns-queries').textContent = fmtCount(s.dns_queries);
+      document.getElementById('dash-blocked').textContent = fmtCount(s.blocked_policy);
+      const pct = typeof s.percent_blocked === 'number' ? s.percent_blocked.toFixed(1) : '0.0';
+      document.getElementById('dash-blocked-pct').textContent =
+        '黑名单 ' + fmtCount(s.blocked_blacklist) + ' · 非白名单 ' + fmtCount(s.blocked_whitelist) + ' · 约占 DNS 查询 ' + pct + '%';
+      document.getElementById('dash-cache').textContent = fmtCount(s.cache_hits);
+      const lat = s.avg_latency_ms;
+      document.getElementById('dash-latency').textContent =
+        lat != null && !Number.isNaN(Number(lat)) ? Number(lat).toFixed(2) + ' ms' : '—';
+      document.getElementById('dash-cn').textContent = fmtCount(s.resolved_cn);
+      document.getElementById('dash-out').textContent = fmtCount(s.resolved_out);
+      document.getElementById('dash-bl').textContent = fmtCount(s.blocked_blacklist);
+      document.getElementById('dash-wl').textContent = fmtCount(s.blocked_whitelist);
+      document.getElementById('dash-rl').textContent = fmtCount(s.rate_limited);
+      document.getElementById('dash-mal').textContent = fmtCount(s.malformed);
+      document.getElementById('dash-doh-auth').textContent = fmtCount(s.doh_auth_fail);
+      document.getElementById('dash-err').textContent = fmtCount(s.errors);
+      const upEl = document.getElementById('dash-uptime');
+      if (upEl) upEl.textContent = formatUptime(s.uptime_seconds);
+      document.getElementById('dash-logged').textContent = fmtCount(s.logged_rows);
+    } catch (e) {
+      pill.textContent = '离线';
+      if (stHealth) stHealth.textContent = '—';
+    }
+  }
+
+  document.getElementById('btn-save-cfg').onclick = saveConfig;
+  document.getElementById('btn-load-cfg').onclick = loadConfig;
+  document.getElementById('add-cn').onclick = () => appendUpstreamRow(document.querySelector('#tbl-cn tbody'));
+  document.getElementById('add-out').onclick = () => appendUpstreamRow(document.querySelector('#tbl-out tbody'));
+
+  document.getElementById('wl-add').onclick = async () => {
+    const raw = document.getElementById('wl-input').value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    const r = await fetch('/api/v1/whitelist', req({ method: 'POST', headers: headers(true), body: JSON.stringify({ patterns: raw }) }));
+    if (!r.ok) { toast(await r.text(), false); return; }
+    toast('白名单已写入 Redis', true);
+    wlListPage = 1;
+    loadWhitelist();
+  };
+  async function deleteWhitelistPatterns(patterns) {
+    const clean = [];
+    const seen = {};
+    for (const s of patterns) {
+      const t = String(s).trim().toLowerCase();
+      if (t && !seen[t]) {
+        seen[t] = true;
+        clean.push(t);
+      }
+    }
+    if (!clean.length) {
+      toast('没有可移除的规则', false);
+      return;
+    }
+    const r = await fetch('/api/v1/whitelist', req({
+      method: 'DELETE',
+      headers: headers(true),
+      body: JSON.stringify({ patterns: clean })
+    }));
+    if (!r.ok) {
+      toast(await r.text(), false);
+      return;
+    }
+    toast('已从 Redis 移除', true);
+    await loadWhitelist();
+  }
+  function updateWlPager() {
+    const per = wlLastMeta.per_page || 20;
+    const tm = wlLastMeta.total_matched;
+    const pages = tm === 0 ? 1 : Math.max(1, Math.ceil(tm / per));
+    document.getElementById('wl-page-info').textContent =
+      '共 ' + fmtCount(wlLastMeta.total_in_set) + ' 条' +
+      (wlListQuery ? ' · 匹配 ' + fmtCount(tm) + ' 条' : '') +
+      ' · 第 ' + wlListPage + ' / ' + pages + ' 页（每页 ' + per + ' 条）';
+    document.getElementById('wl-page-prev').disabled = wlListPage <= 1;
+    document.getElementById('wl-page-next').disabled = wlListPage >= pages || tm === 0;
+    const delQ = document.getElementById('wl-delete-query');
+    if (delQ) delQ.disabled = !wlListQuery || tm <= 0;
+  }
+  function renderWhitelistList(patterns) {
+    const el = document.getElementById('wl-list');
+    el.innerHTML = '';
+    el.className = 'log wl-list-panel';
+    if (!patterns || !patterns.length) {
+      if (wlListQuery && wlLastMeta.total_matched === 0) {
+        el.textContent = '（当前查询无匹配）';
+      } else if (!wlListQuery && wlLastMeta.total_in_set === 0) {
+        el.textContent = '（Redis 中暂无白名单条目）';
+      } else {
+        el.textContent = '（本页无数据）';
+      }
+      return;
+    }
+    for (let i = 0; i < patterns.length; i++) {
+      const p = patterns[i];
+      const row = document.createElement('div');
+      row.className = 'wl-row';
+      const span = document.createElement('code');
+      span.style.flex = '1';
+      span.style.textAlign = 'left';
+      span.style.wordBreak = 'break-all';
+      span.style.fontSize = '0.85rem';
+      span.style.background = 'transparent';
+      span.textContent = p;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-danger btn-sm';
+      btn.textContent = '删除';
+      btn.setAttribute('aria-label', '删除 ' + p);
+      btn.onclick = function () {
+        deleteWhitelistPatterns([p]);
+      };
+      row.appendChild(span);
+      row.appendChild(btn);
+      el.appendChild(row);
+    }
+  }
+  async function loadWhitelist(options) {
+    const skipAdjust = options && options.skipAdjustPage;
+    const el = document.getElementById('wl-list');
+    try {
+      const params = new URLSearchParams({ page: String(wlListPage), per_page: '20' });
+      if (wlListQuery) params.set('q', wlListQuery);
+      const r = await fetch('/api/v1/whitelist?' + params.toString(), req({ headers: headers(false) }));
+      const text = await r.text();
+      if (!r.ok) {
+        el.className = 'log wl-list-panel';
+        el.textContent = '加载失败：' + text;
+        return;
+      }
+      const data = JSON.parse(text);
+      if (data == null || typeof data.total_in_set !== 'number') {
+        el.className = 'log wl-list-panel';
+        el.textContent = '接口返回格式异常';
+        return;
+      }
+      wlLastMeta = {
+        total_in_set: data.total_in_set,
+        total_matched: data.total_matched,
+        per_page: data.per_page || 20
+      };
+      const patterns = Array.isArray(data.patterns) ? data.patterns : [];
+      if (!skipAdjust && patterns.length === 0 && data.total_matched > 0 && wlListPage > 1) {
+        wlListPage--;
+        return loadWhitelist({ skipAdjustPage: true });
+      }
+      renderWhitelistList(patterns);
+      updateWlPager();
+    } catch (e) {
+      el.className = 'log wl-list-panel';
+      el.textContent = String(e);
+    }
+  }
+  document.getElementById('wl-remove').onclick = () => {
+    const raw = document.getElementById('wl-input').value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    deleteWhitelistPatterns(raw);
+  };
+  document.getElementById('wl-refresh').onclick = () => loadWhitelist();
+  document.getElementById('wl-clear-all').onclick = async () => {
+    let n = typeof wlLastMeta.total_in_set === 'number' ? wlLastMeta.total_in_set : 0;
+    if (n <= 0) {
+      try {
+        const r = await fetch('/api/v1/whitelist/stats', req({ headers: headers(false) }));
+        if (r.ok) {
+          const j = await r.json();
+          if (typeof j.count === 'number') n = j.count;
+        }
+      } catch (e) { /* ignore */ }
+    }
+    if (n <= 0) {
+      toast('当前 Redis 白名单为空', false);
+      return;
+    }
+    if (!window.confirm('确定清空 Redis 中的全部白名单规则？共 ' + fmtCount(n) + ' 条。此操作不可撤销。')) return;
+    const r = await fetch('/api/v1/whitelist', req({
+      method: 'DELETE',
+      headers: headers(true),
+      body: JSON.stringify({ all: true })
+    }));
+    const t = await r.text();
+    if (!r.ok) {
+      toast(t || '清空失败', false);
+      return;
+    }
+    let msg = '白名单已清空';
+    try {
+      const j = JSON.parse(t);
+      if (j.removed != null) msg = '已清空 ' + fmtCount(j.removed) + ' 条';
+    } catch (e) { /* ignore */ }
+    toast(msg, true);
+    document.getElementById('wl-input').value = '';
+    document.getElementById('wl-search').value = '';
+    wlListQuery = '';
+    wlListPage = 1;
+    await loadWhitelist();
+  };
+  document.getElementById('wl-search-run').onclick = () => {
+    wlListQuery = document.getElementById('wl-search').value.trim();
+    wlListPage = 1;
+    loadWhitelist();
+  };
+  document.getElementById('wl-search-clear').onclick = () => {
+    document.getElementById('wl-search').value = '';
+    wlListQuery = '';
+    wlListPage = 1;
+    loadWhitelist();
+  };
+  document.getElementById('wl-search').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      document.getElementById('wl-search-run').click();
+    }
+  });
+  document.getElementById('wl-page-prev').onclick = () => {
+    if (wlListPage > 1) {
+      wlListPage--;
+      loadWhitelist();
+    }
+  };
+  document.getElementById('wl-page-next').onclick = () => {
+    const per = wlLastMeta.per_page || 20;
+    const tm = wlLastMeta.total_matched;
+    const pages = tm === 0 ? 1 : Math.max(1, Math.ceil(tm / per));
+    if (wlListPage < pages) {
+      wlListPage++;
+      loadWhitelist();
+    }
+  };
+  document.getElementById('wl-delete-query').onclick = async () => {
+    const q = document.getElementById('wl-search').value.trim();
+    if (!q) {
+      toast('请先输入查询关键词', false);
+      return;
+    }
+    const n = wlLastMeta.total_matched;
+    if (n <= 0) {
+      toast('当前查询无匹配项', false);
+      return;
+    }
+    if (!window.confirm('确定从 Redis 删除所有包含「' + q + '」的白名单规则？共 ' + n + ' 条。')) return;
+    const r = await fetch('/api/v1/whitelist', req({
+      method: 'DELETE',
+      headers: headers(true),
+      body: JSON.stringify({ query: q })
+    }));
+    const t = await r.text();
+    if (!r.ok) {
+      toast(t || '删除失败', false);
+      return;
+    }
+    let msg = '已删除';
+    try {
+      const j = JSON.parse(t);
+      if (j.removed != null) msg = '已删除 ' + fmtCount(j.removed) + ' 条';
+    } catch (e) { /* ignore */ }
+    toast(msg, true);
+    document.getElementById('wl-search').value = '';
+    wlListQuery = '';
+    wlListPage = 1;
+    await loadWhitelist();
+  };
+
+  const LS_WL_SUB = 'dns_wl_sub_last';
+
+  function applySubPullReport(rep, updateTotal) {
+    document.getElementById('wl-sub-parsed').textContent = fmtCount(rep.patterns_parsed);
+    document.getElementById('wl-sub-added').textContent = fmtCount(rep.patterns_added);
+    const tried = rep.urls_tried;
+    const ok = rep.urls_ok != null ? rep.urls_ok : 0;
+    document.getElementById('wl-sub-urls-ok').textContent =
+      (tried != null && tried > 0) ? (ok + ' / ' + tried) : '—';
+    if (updateTotal) {
+      document.getElementById('wl-sub-total').textContent = fmtCount(rep.total_in_set);
+    }
+    const errEl = document.getElementById('wl-sub-err');
+    if (rep.last_error) {
+      errEl.textContent = rep.last_error;
+      errEl.classList.add('show');
+    } else {
+      errEl.textContent = '';
+      errEl.classList.remove('show');
+    }
+  }
+
+  async function refreshWhitelistSubscribePanel() {
+    try {
+      const r = await fetch('/api/v1/whitelist/stats', req({ headers: headers(false) }));
+      if (r.ok) {
+        const j = await r.json();
+        document.getElementById('wl-sub-total').textContent = fmtCount(j.count);
+      }
+    } catch (e) { /* ignore */ }
+    try {
+      const raw = localStorage.getItem(LS_WL_SUB);
+      if (raw) {
+        const o = JSON.parse(raw);
+        if (o && o.rep) {
+          applySubPullReport(o.rep, false);
+        }
+        const meta = document.getElementById('wl-sub-meta');
+        if (o && o.at) {
+          const d = new Date(o.at);
+          meta.textContent = '上次刷新：' + d.toLocaleString('zh-CN', { hour12: false }) +
+            (o.rep && o.rep.last_error ? '（部分源可能失败，见下方提示）' : '');
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  document.getElementById('btn-wl-sub-pull').onclick = async () => {
+    const btn = document.getElementById('btn-wl-sub-pull');
+    const meta = document.getElementById('wl-sub-meta');
+    btn.disabled = true;
+    meta.textContent = '正在拉取订阅…';
+    document.getElementById('wl-sub-err').classList.remove('show');
+    try {
+      const r = await fetch('/api/v1/whitelist/subscribe/pull', req({ method: 'POST', headers: headers(false) }));
+      const text = await r.text();
+      if (!r.ok) {
+        meta.textContent = '刷新失败';
+        const errEl = document.getElementById('wl-sub-err');
+        errEl.textContent = text || r.statusText;
+        errEl.classList.add('show');
+        return;
+      }
+      const rep = JSON.parse(text);
+      applySubPullReport(rep, true);
+      const at = Date.now();
+      meta.textContent = '上次刷新：' + new Date(at).toLocaleString('zh-CN', { hour12: false }) +
+        (rep.last_error ? '（部分源可能失败）' : ' · 已完成');
+      try {
+        localStorage.setItem(LS_WL_SUB, JSON.stringify({ at, rep }));
+      } catch (e) { /* ignore */ }
+      toast(rep.last_error ? '订阅已刷新（有警告）' : '订阅已刷新', !rep.last_error);
+      await refreshWhitelistSubscribePanel();
+    } catch (e) {
+      meta.textContent = '刷新失败';
+      document.getElementById('wl-sub-err').textContent = String(e);
+      document.getElementById('wl-sub-err').classList.add('show');
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  function escHtml(s) {
+    if (s == null || s === '') return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function fmtCacheTTL(sec) {
+    const x = Number(sec);
+    if (x === -2) return '（缺失）';
+    if (x === -1 || (x >= -1.001 && x <= -0.999)) return '不过期';
+    if (x < 0) return '—';
+    if (x < 90) return Math.round(x) + ' 秒';
+    if (x < 3600) return (x / 60).toFixed(1) + ' 分';
+    if (x < 86400) return (x / 3600).toFixed(1) + ' 小时';
+    return (x / 86400).toFixed(1) + ' 天';
+  }
+
+  function renderCacheList(data) {
+    const total = data.total ?? 0;
+    const page = data.page ?? 1;
+    const per = data.per_page ?? 20;
+    const entries = Array.isArray(data.entries) ? data.entries : [];
+    cacheListMeta.total = total;
+    cacheListMeta.perPage = per;
+    cacheListPage = page;
+    document.getElementById('cache-total').textContent = fmtCount(total);
+    const totalPages = total === 0 ? 1 : Math.max(1, Math.ceil(total / per));
+    document.getElementById('cache-page-info').textContent =
+      '第 ' + page + ' / ' + totalPages + ' 页（每页 ' + per + ' 条）';
+    document.getElementById('cache-page-prev').disabled = page <= 1;
+    document.getElementById('cache-page-next').disabled = page >= totalPages;
+
+    const emptyEl = document.getElementById('cache-list-empty');
+    const tableEl = document.getElementById('cache-list-table');
+    const tbody = document.getElementById('cache-list-tbody');
+    tbody.innerHTML = '';
+    if (total === 0) {
+      emptyEl.classList.remove('hidden');
+      tableEl.classList.add('hidden');
+      emptyEl.textContent = '当前模式下没有匹配的缓存键';
+      return;
+    }
+    emptyEl.classList.add('hidden');
+    tableEl.classList.remove('hidden');
+    for (const row of entries) {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td class="cache-key">' + escHtml(row.key) + '</td>' +
+        '<td class="cache-num">' + escHtml(fmtCacheTTL(row.ttl_seconds)) + '</td>' +
+        '<td class="cache-summary">' + escHtml(row.summary || '—') + '</td>' +
+        '<td class="cache-num">' + escHtml(row.value_length != null ? String(row.value_length) : '—') + '</td>';
+      tbody.appendChild(tr);
+    }
+  }
+
+  async function loadCacheList(page) {
+    const pat = document.getElementById('cache-pattern').value.trim() || 'dns:*';
+    let per = parseInt(document.getElementById('cache-per-page').value, 10);
+    if (![20, 50, 100, 500].includes(per)) per = 20;
+    const params = new URLSearchParams({ pattern: pat, page: String(page), per_page: String(per) });
+    try {
+      const r = await fetch('/api/v1/cache/entries?' + params.toString(), req({ headers: headers(false) }));
+      const text = await r.text();
+      if (!r.ok) {
+        toast(text || '加载缓存列表失败', false);
+        return;
+      }
+      const data = JSON.parse(text);
+      renderCacheList(data);
+    } catch (e) {
+      toast(String(e), false);
+    }
+  }
+
+  function fillGeoBanner(d) {
+    document.getElementById('geo-loaded-total').textContent = d && d.total != null ? String(d.total) : '—';
+    document.getElementById('geo-loaded-v4').textContent = d && d.ipv4 != null ? String(d.ipv4) : '—';
+    document.getElementById('geo-loaded-v6').textContent = d && d.ipv6 != null ? String(d.ipv6) : '—';
+  }
+
+  async function loadGeoBannerStats() {
+    try {
+      const r = await fetch('/api/v1/geoip/cidrs?page=1&per_page=1', req({ headers: headers(false) }));
+      if (!r.ok) {
+        fillGeoBanner(null);
+        return;
+      }
+      fillGeoBanner(await r.json());
+    } catch (e) {
+      fillGeoBanner(null);
+    }
+  }
+
+  function closeGeoCidrModal() {
+    const m = document.getElementById('geo-cidr-modal');
+    m.classList.add('hidden');
+    m.setAttribute('aria-hidden', 'true');
+  }
+
+  function openGeoCidrModal() {
+    geoModalPage = 1;
+    const m = document.getElementById('geo-cidr-modal');
+    m.classList.remove('hidden');
+    m.setAttribute('aria-hidden', 'false');
+    loadGeoModalPage();
+  }
+
+  async function loadGeoModalPage() {
+    const perEl = document.getElementById('geo-modal-per');
+    let per = parseInt(perEl.value, 10);
+    if (![20, 50, 100, 500].includes(per)) per = 100;
+    const tbody = document.getElementById('geo-modal-tbody');
+    tbody.innerHTML = '<tr><td colspan="2" style="color:var(--text-muted)">加载中…</td></tr>';
+    try {
+      const r = await fetch('/api/v1/geoip/cidrs?page=' + encodeURIComponent(geoModalPage) + '&per_page=' + per, req({ headers: headers(false) }));
+      if (!r.ok) {
+        tbody.innerHTML = '<tr><td colspan="2">' + escHtml(await r.text()) + '</td></tr>';
+        return;
+      }
+      const d = await r.json();
+      document.getElementById('geo-modal-total').textContent = d.total != null ? String(d.total) : '—';
+      document.getElementById('geo-modal-v4').textContent = d.ipv4 != null ? String(d.ipv4) : '—';
+      document.getElementById('geo-modal-v6').textContent = d.ipv6 != null ? String(d.ipv6) : '—';
+      const total = Number(d.total) || 0;
+      const pages = total ? Math.ceil(total / per) : 1;
+      if (geoModalPage > pages) {
+        geoModalPage = pages;
+        return loadGeoModalPage();
+      }
+      document.getElementById('geo-modal-pageinfo').textContent = '第 ' + geoModalPage + ' / ' + pages + ' 页';
+      document.getElementById('geo-modal-prev').disabled = geoModalPage <= 1;
+      document.getElementById('geo-modal-next').disabled = geoModalPage >= pages || total === 0;
+      tbody.innerHTML = '';
+      const baseIdx = (geoModalPage - 1) * per;
+      const list = Array.isArray(d.cidrs) ? d.cidrs : [];
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="2" style="color:var(--text-muted)">暂无数据（请先成功刷新 IP 库）</td></tr>';
+        return;
+      }
+      for (let i = 0; i < list.length; i++) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td class="cache-num">' + (baseIdx + i + 1) + '</td><td>' + escHtml(list[i]) + '</td>';
+        tbody.appendChild(tr);
+      }
+    } catch (e) {
+      tbody.innerHTML = '<tr><td colspan="2">' + escHtml(String(e)) + '</td></tr>';
+    }
+  }
+
+  document.getElementById('geo-cidr-detail').onclick = openGeoCidrModal;
+  document.getElementById('geo-modal-close').onclick = closeGeoCidrModal;
+  document.getElementById('geo-cidr-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'geo-cidr-modal') closeGeoCidrModal();
+  });
+  document.getElementById('geo-modal-per').addEventListener('change', () => { geoModalPage = 1; loadGeoModalPage(); });
+  document.getElementById('geo-modal-prev').onclick = () => {
+    if (geoModalPage > 1) {
+      geoModalPage--;
+      loadGeoModalPage();
+    }
+  };
+  document.getElementById('geo-modal-next').onclick = () => {
+    geoModalPage++;
+    loadGeoModalPage();
+  };
+
+  document.getElementById('cache-list-refresh').onclick = () => loadCacheList(cacheListPage);
+  document.getElementById('cache-per-page').onchange = () => loadCacheList(1);
+  document.getElementById('cache-page-prev').onclick = () => loadCacheList(Math.max(1, cacheListPage - 1));
+  document.getElementById('cache-page-next').onclick = () => {
+    const total = cacheListMeta.total;
+    const per = cacheListMeta.perPage;
+    const totalPages = total === 0 ? 1 : Math.max(1, Math.ceil(total / per));
+    if (cacheListPage < totalPages) loadCacheList(cacheListPage + 1);
+  };
+
+  document.getElementById('cache-flush').onclick = async () => {
+    const pat = document.getElementById('cache-pattern').value.trim();
+    const q = pat ? '?pattern=' + encodeURIComponent(pat) : '';
+    const r = await fetch('/api/v1/cache' + q, req({ method: 'DELETE', headers: headers(false) }));
+    const j = await r.json().catch(() => ({}));
+    toast(r.ok ? ('已删除 ' + (j.deleted ?? '?') + ' 个键') : await r.text(), r.ok);
+    if (r.ok) loadCacheList(1);
+  };
+
+  function formatLogTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return escHtml(iso);
+    const pad = (n) => (n < 10 ? '0' + n : '' + n);
+    const ms = pad(Math.floor(d.getMilliseconds() / 10));
+    return escHtml(
+      d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
+      pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '.' + ms
+    );
+  }
+  function routePillClass(route) {
+    const r = (route || '').trim();
+    if (r === '国内') return 'route-pill route-cn';
+    if (r === '海外') return 'route-pill route-out';
+    if (r === '缓存') return 'route-pill route-cache';
+    if (r === '非白名单') return 'route-pill route-block';
+    if (r === '黑名单') return 'route-pill route-bl';
+    if (r === '错误') return 'route-pill route-err';
+    return 'route-pill route-dash';
+  }
+  function appendLogsFilterParams(params) {
+    const d = document.getElementById('logs-filter-domain').value.trim();
+    const v = document.getElementById('logs-filter-vip').value.trim();
+    const ri = document.getElementById('logs-filter-real').value.trim();
+    const q = document.getElementById('logs-filter-q').value.trim();
+    if (d) params.set('domain', d);
+    if (v) params.set('vip', v);
+    if (ri) params.set('real_ip', ri);
+    if (q) params.set('q', q);
+  }
+  function updateLogsPager() {
+    const t = logsListMeta.total || 0;
+    const ta = logsListMeta.totalAll != null ? logsListMeta.totalAll : t;
+    const per = logsListMeta.perPage || 20;
+    const label = document.getElementById('logs-total-label');
+    if (logsListMeta.hasFilters) {
+      label.textContent = '匹配 ' + fmtCount(t) + ' 条 · 全集 ' + fmtCount(ta) + ' 条';
+    } else {
+      label.textContent = '共 ' + fmtCount(t) + ' 条';
+    }
+    const pages = t === 0 ? 1 : Math.max(1, Math.ceil(t / per));
+    document.getElementById('logs-page-info').textContent = '第 ' + logsPage + ' / ' + pages + ' 页（每页 ' + per + ' 条）';
+    document.getElementById('logs-page-prev').disabled = logsPage <= 1;
+    document.getElementById('logs-page-next').disabled = logsPage >= pages || t === 0;
+  }
+  function renderQueryLogs(rows) {
+    const tbody = document.getElementById('logs-tbody');
+    const table = document.getElementById('logs-table');
+    const empty = document.getElementById('logs-empty');
+    tbody.innerHTML = '';
+    if (!rows || !rows.length) {
+      table.classList.add('hidden');
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    table.classList.remove('hidden');
+    for (const r of rows) {
+      const tr = document.createElement('tr');
+      const reqHtml = '<div class="req-domain">' + escHtml(r.domain || '—') + '</div>' +
+        (r.qtype ? '<span class="req-type">' + escHtml(r.qtype) + '</span>' : '');
+      const lat = r.latency_ms != null ? r.latency_ms + ' ms' : '';
+      const respHtml = '<div class="resp-main">' + escHtml(r.answer_summary || '—') + '</div>' +
+        '<div class="resp-meta"><span class="' + routePillClass(r.route) + '">' + escHtml(r.route || '—') + '</span>' +
+        (lat ? '<span class="lat">' + escHtml(lat) + '</span>' : '') + '</div>';
+      const lines = [];
+      if (r.vip) lines.push('<div class="cl-line"><span class="cl-lbl">源</span> ' + escHtml(r.vip) + '</div>');
+      if (r.real_ip) lines.push('<div class="cl-line"><span class="cl-lbl">映射</span> ' + escHtml(r.real_ip) + '</div>');
+      if (r.client_subnet) lines.push('<div class="cl-line"><span class="cl-lbl">ECS</span> ' + escHtml(r.client_subnet) + '</div>');
+      const clientHtml = lines.length ? lines.join('') : '—';
+      tr.innerHTML =
+        '<td class="log-col-time">' + formatLogTime(r.time) + '</td>' +
+        '<td class="log-col-req">' + reqHtml + '</td>' +
+        '<td class="log-col-resp">' + respHtml + '</td>' +
+        '<td class="log-col-client">' + clientHtml + '</td>';
+      tbody.appendChild(tr);
+    }
+  }
+  async function loadQueryLogs(options) {
+    const skipAdjust = options && options.skipAdjustPage;
+    if (options && typeof options.page === 'number' && options.page >= 1) {
+      logsPage = options.page;
+    }
+    let per = parseInt(document.getElementById('logs-per-page').value, 10);
+    if (![20, 50, 100].includes(per)) per = 20;
+    try {
+      const params = new URLSearchParams({ page: String(logsPage), per_page: String(per) });
+      appendLogsFilterParams(params);
+      const r = await fetch('/api/v1/logs?' + params.toString(), req({ headers: headers(false) }));
+      if (!r.ok) {
+        toast(await r.text(), false);
+        return;
+      }
+      const data = await r.json();
+      if (data == null || typeof data.total !== 'number') {
+        renderQueryLogs([]);
+        return;
+      }
+      logsListMeta = {
+        total: data.total,
+        totalAll: typeof data.total_all === 'number' ? data.total_all : data.total,
+        perPage: data.per_page || per,
+        hasFilters: !!data.has_filters,
+      };
+      const entries = Array.isArray(data.entries) ? data.entries : [];
+      if (!skipAdjust && entries.length === 0 && data.total > 0 && logsPage > 1) {
+        logsPage--;
+        return loadQueryLogs({ skipAdjustPage: true });
+      }
+      const emptyEl = document.getElementById('logs-empty');
+      if ((!entries || entries.length === 0) && logsListMeta.hasFilters && logsListMeta.totalAll > 0) {
+        emptyEl.textContent = '当前筛选条件下无匹配记录（全集 ' + fmtCount(logsListMeta.totalAll) + ' 条）';
+      } else {
+        emptyEl.textContent = '暂无查询记录';
+      }
+      renderQueryLogs(entries);
+      updateLogsPager();
+    } catch (e) {
+      toast(String(e), false);
+    }
+  }
+  document.getElementById('logs-refresh').onclick = () => loadQueryLogs();
+  document.getElementById('logs-clear-all').onclick = async () => {
+    const n = typeof logsListMeta.totalAll === 'number' ? logsListMeta.totalAll : 0;
+    const msg = n > 0
+      ? '确定清空全部查询日志？当前全集约 ' + fmtCount(n) + ' 条。此操作不可撤销。'
+      : '确定清空查询日志？（若使用 Redis 列表，将删除该键；进程内模式则清空内存缓冲。）';
+    if (!window.confirm(msg)) return;
+    const r = await fetch('/api/v1/logs', req({ method: 'DELETE', headers: headers(false) }));
+    if (!r.ok) {
+      toast(await r.text(), false);
+      return;
+    }
+    toast('查询日志已清空', true);
+    logsPage = 1;
+    await loadQueryLogs({ page: 1 });
+  };
+  document.getElementById('logs-per-page').onchange = () => loadQueryLogs({ page: 1 });
+  document.getElementById('logs-filter-apply').onclick = () => loadQueryLogs({ page: 1 });
+  document.getElementById('logs-filter-clear').onclick = () => {
+    document.getElementById('logs-filter-domain').value = '';
+    document.getElementById('logs-filter-vip').value = '';
+    document.getElementById('logs-filter-real').value = '';
+    document.getElementById('logs-filter-q').value = '';
+    loadQueryLogs({ page: 1 });
+  };
+  ['logs-filter-domain', 'logs-filter-vip', 'logs-filter-real', 'logs-filter-q'].forEach((id) => {
+    document.getElementById(id).addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        loadQueryLogs({ page: 1 });
+      }
+    });
+  });
+  document.getElementById('logs-page-prev').onclick = () => {
+    if (logsPage > 1) {
+      logsPage--;
+      loadQueryLogs();
+    }
+  };
+  document.getElementById('logs-page-next').onclick = () => {
+    const t = logsListMeta.total || 0;
+    const per = logsListMeta.perPage || 20;
+    const pages = t === 0 ? 1 : Math.max(1, Math.ceil(t / per));
+    if (logsPage < pages) {
+      logsPage++;
+      loadQueryLogs();
+    }
+  };
+
+  function sysLog(msg) {
+    document.getElementById('sys-status').textContent = msg;
+  }
+  document.getElementById('cfg-reload').onclick = async () => {
+    const r = await fetch('/api/v1/config/reload', req({ method: 'POST', headers: headers(false) }));
+    sysLog(r.ok ? '配置已从磁盘加载' : await r.text());
+    if (r.ok) { toast('已从磁盘加载', true); await loadConfig(); }
+  };
+  document.getElementById('geo-refresh-now').onclick = async () => {
+    const r = await fetch('/api/v1/geoip/refresh', req({ method: 'POST', headers: headers(false) }));
+    const msg = r.ok ? '中国 IP 库已刷新' : await r.text();
+    sysLog(msg);
+    document.getElementById('geo-refresh-status').textContent = msg;
+    toast(r.ok ? 'GeoIP 已刷新' : '刷新失败', r.ok);
+    if (r.ok) await loadGeoBannerStats();
+  };
+
+  document.getElementById('dash-reload-disk').onclick = () => { showPage('system'); document.getElementById('cfg-reload').click(); };
+  document.getElementById('dash-geo').onclick = () => { showPage('geoip'); document.getElementById('geo-refresh-now').click(); };
+  document.getElementById('dash-goto-general').onclick = () => showPage('general');
+  document.getElementById('dash-goto-logs').onclick = () => showPage('logs');
+  document.getElementById('dash-goto-monitor').onclick = () => showPage('monitor');
+  document.getElementById('dash-reset-stats').onclick = async () => {
+    if (!window.confirm('确定重置仪表盘全部计数？运行时间将重新计时，并删除 Redis 中的统计持久化键；异步日志丢弃计数也会清零。不影响查询日志与 DNS 缓存。')) return;
+    const r = await fetch('/api/v1/stats/reset', req({ method: 'POST', headers: headers(false) }));
+    if (!r.ok) {
+      toast(await r.text(), false);
+      return;
+    }
+    toast('仪表盘计数已重置', true);
+    await refreshDashStats();
+  };
+
+  async function refreshMeta() {
+    const pre = document.getElementById('meta-json');
+    try {
+      const r = await fetch('/api/v1/meta', req({ headers: headers(false) }));
+      pre.textContent = JSON.stringify(await r.json(), null, 2);
+    } catch (e) {
+      pre.textContent = String(e);
+    }
+  }
+  document.getElementById('btn-meta-refresh').onclick = refreshMeta;
+
+  document.getElementById('btn-change-pwd').onclick = async () => {
+    const current_password = document.getElementById('admin-pwd-old').value;
+    const new_password = document.getElementById('admin-pwd-new').value;
+    const r = await fetch('/api/v1/auth/password', req({
+      method: 'POST',
+      headers: headers(true),
+      body: JSON.stringify({ current_password, new_password })
+    }));
+    if (!r.ok) {
+      toast(await r.text(), false);
+      return;
+    }
+    document.getElementById('admin-pwd-old').value = '';
+    document.getElementById('admin-pwd-new').value = '';
+    toast('密码已更新', true);
+    await loadConfig();
+  };
+
+  document.getElementById('btn-logout').onclick = async () => {
+    if (dashTimer) {
+      clearInterval(dashTimer);
+      dashTimer = null;
+    }
+    await fetch('/api/v1/auth/logout', req({ method: 'POST', headers: headers(false) }));
+    document.getElementById('login-gate').classList.remove('hidden');
+    document.getElementById('login-gate').setAttribute('aria-hidden', 'false');
+    document.getElementById('login-pass').value = '';
+    document.getElementById('login-err').textContent = '';
+    toast('已退出', true);
+  };
+
+  async function tryLogin() {
+    const errEl = document.getElementById('login-err');
+    errEl.textContent = '';
+    const username = document.getElementById('login-user').value.trim();
+    const password = document.getElementById('login-pass').value;
+    const r = await fetch('/api/v1/auth/login', req({
+      method: 'POST',
+      headers: headers(true),
+      body: JSON.stringify({ username, password })
+    }));
+    if (!r.ok) {
+      errEl.textContent = (await r.text()) || '登录失败';
+      return;
+    }
+    document.getElementById('login-gate').classList.add('hidden');
+    document.getElementById('login-gate').setAttribute('aria-hidden', 'true');
+    startApp();
+  }
+
+  function startApp() {
+    renderUpstreamTable(document.querySelector('#tbl-cn tbody'), []);
+    renderUpstreamTable(document.querySelector('#tbl-out tbody'), []);
+    loadConfig().then(() => {});
+    refreshDashStats();
+    if (dashTimer) clearInterval(dashTimer);
+    dashTimer = setInterval(() => {
+      if (document.getElementById('page-dash').classList.contains('active')) {
+        refreshDashStats();
+      } else {
+        checkHealth();
+      }
+    }, 12000);
+    loadWhitelist();
+  }
+
+  document.getElementById('login-submit').onclick = tryLogin;
+  document.getElementById('login-pass').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') tryLogin();
+  });
+
+  (async function boot() {
+    let me;
+    try {
+      const r = await fetch('/api/v1/auth/me', req({ headers: headers(false) }));
+      me = await r.json();
+    } catch (e) {
+      me = { authenticated: false };
+    }
+    if (me && me.authenticated) {
+      document.getElementById('login-gate').classList.add('hidden');
+      document.getElementById('login-gate').setAttribute('aria-hidden', 'true');
+      document.getElementById('login-user').value = me.username || 'admin';
+      startApp();
+      return;
+    }
+    document.getElementById('login-user').value = 'admin';
+    document.getElementById('login-pass').value = '';
+  })();
+})();
+  </script>
+</body>
+</html>

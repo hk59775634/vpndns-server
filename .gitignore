@@ -1,0 +1,24 @@
+# 构建产物
+/bin/
+/dist/
+*.exe
+vpndns-server
+
+# 本地配置（常含 TLS 私钥、API 密钥；勿提交）
+configs/config.yaml
+
+# 环境
+.env
+.env.*
+!.env.example
+
+# 编辑器与系统
+.DS_Store
+.idea/
+.vscode/
+*.swp
+.cursor/
+
+# Go
+coverage.out
+*.test
