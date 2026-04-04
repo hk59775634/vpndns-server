@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"context"
+	"hash/fnv"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -14,12 +15,18 @@ import (
 // qps <= 0 disables limiting (Allow always true).
 // qps > 0 and burst <= 0 uses a very large bucket (effectively unlimited burst).
 type PerIP struct {
-	mu        sync.Mutex
-	limiters  map[string]*limEntry
+	shards    [shardCount]ipShard
 	unlimited bool
 	qps       rate.Limit
 	burst     int
 }
+
+type ipShard struct {
+	mu       sync.Mutex
+	limiters map[string]*limEntry
+}
+
+const shardCount = 256
 
 type limEntry struct {
 	lim  *rate.Limiter
@@ -28,22 +35,32 @@ type limEntry struct {
 
 const unlimitedBurst = 1 << 30 // fits int32; large enough for practical spikes
 
+func shardIndex(ip string) int {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(ip))
+	return int(h.Sum32() % shardCount)
+}
+
 func New(qps float64, burst int) *PerIP {
 	if qps <= 0 {
-		return &PerIP{
-			unlimited: true,
-			limiters:  make(map[string]*limEntry),
+		p := &PerIP{unlimited: true}
+		for i := range p.shards {
+			p.shards[i].limiters = make(map[string]*limEntry)
 		}
+		return p
 	}
 	b := burst
 	if b <= 0 {
 		b = unlimitedBurst
 	}
-	return &PerIP{
-		limiters: make(map[string]*limEntry),
-		qps:      rate.Limit(qps),
-		burst:    b,
+	p := &PerIP{
+		qps:   rate.Limit(qps),
+		burst: b,
 	}
+	for i := range p.shards {
+		p.shards[i].limiters = make(map[string]*limEntry)
+	}
+	return p
 }
 
 // Allow uses a per-IP token bucket; updates last-seen time for pruning.
@@ -51,40 +68,58 @@ func (p *PerIP) Allow(ip string) bool {
 	if p.unlimited {
 		return true
 	}
-	p.mu.Lock()
-	e, ok := p.limiters[ip]
+	sh := &p.shards[shardIndex(ip)]
+	sh.mu.Lock()
+	e, ok := sh.limiters[ip]
 	if !ok {
 		e = &limEntry{lim: rate.NewLimiter(p.qps, p.burst)}
-		p.limiters[ip] = e
+		sh.limiters[ip] = e
 	}
 	okb := e.lim.Allow()
 	atomic.StoreInt64(&e.last, time.Now().UnixNano())
-	p.mu.Unlock()
+	sh.mu.Unlock()
 	return okb
 }
 
 // Reload updates limits and drops per-IP limiter state so new rates apply immediately.
 func (p *PerIP) Reload(qps float64, burst int) {
-	p.mu.Lock()
 	if qps <= 0 {
+		p.muLockAllShards()
 		p.unlimited = true
 		p.qps = 0
 		p.burst = 0
-		p.limiters = make(map[string]*limEntry)
-		p.mu.Unlock()
+		for i := range p.shards {
+			p.shards[i].limiters = make(map[string]*limEntry)
+		}
+		p.muUnlockAllShards()
 		return
 	}
+	b := burst
+	if b <= 0 {
+		b = unlimitedBurst
+	} else if b > math.MaxInt32 {
+		b = math.MaxInt32
+	}
+	p.muLockAllShards()
 	p.unlimited = false
 	p.qps = rate.Limit(qps)
-	if burst <= 0 {
-		p.burst = unlimitedBurst
-	} else if burst > math.MaxInt32 {
-		p.burst = math.MaxInt32
-	} else {
-		p.burst = burst
+	p.burst = b
+	for i := range p.shards {
+		p.shards[i].limiters = make(map[string]*limEntry)
 	}
-	p.limiters = make(map[string]*limEntry)
-	p.mu.Unlock()
+	p.muUnlockAllShards()
+}
+
+func (p *PerIP) muLockAllShards() {
+	for i := range p.shards {
+		p.shards[i].mu.Lock()
+	}
+}
+
+func (p *PerIP) muUnlockAllShards() {
+	for i := range p.shards {
+		p.shards[i].mu.Unlock()
+	}
 }
 
 // RunPruneLoop periodically removes limiter entries idle longer than maxIdle.
@@ -109,11 +144,14 @@ func (p *PerIP) prune(maxIdle time.Duration) {
 		return
 	}
 	cutoff := time.Now().Add(-maxIdle).UnixNano()
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	for k, e := range p.limiters {
-		if atomic.LoadInt64(&e.last) < cutoff {
-			delete(p.limiters, k)
+	for i := range p.shards {
+		sh := &p.shards[i]
+		sh.mu.Lock()
+		for k, e := range sh.limiters {
+			if atomic.LoadInt64(&e.last) < cutoff {
+				delete(sh.limiters, k)
+			}
 		}
+		sh.mu.Unlock()
 	}
 }

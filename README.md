@@ -36,6 +36,7 @@ go build -o vpndns-server ./cmd/server
 
 | 文档 | 说明 |
 |------|------|
+| [CHANGELOG.md](CHANGELOG.md) | 版本更新日志 |
 | [docs/API.md](docs/API.md) | REST API 列表 |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | 部署与 systemd（含 `deploy/vpndns-server.service` 用法） |
 | [docs/PROMETHEUS.md](docs/PROMETHEUS.md) | Prometheus / Grafana |

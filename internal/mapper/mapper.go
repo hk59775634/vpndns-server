@@ -21,39 +21,56 @@ func VIPRedisKey(vip string) string {
 
 // Mapper resolves VPN virtual IP to real public IP via Redis then HTTP API.
 type Mapper struct {
-	mu     sync.RWMutex
-	rdb    *redis.Client
-	apiURL string
-	ttl    time.Duration
-	client *http.Client
-	pub    *publicIPCache
+	mu                      sync.RWMutex
+	rdb                     *redis.Client
+	apiURL                  string
+	ttl                     time.Duration
+	client                  *http.Client
+	pub                     *publicIPCache
+	httpMaxIdle             int
+	httpMaxIdleConnsPerHost int
 }
 
-func New(rdb *redis.Client, apiURL string, ttlSeconds int, publicProbeURL string) *Mapper {
-	m := &Mapper{
-		rdb: rdb,
-		client: &http.Client{
-			Timeout: 5 * time.Second,
-			Transport: &http.Transport{
-				MaxIdleConns:        32,
-				MaxIdleConnsPerHost: 8,
-				IdleConnTimeout:     90 * time.Second,
-			},
-		},
-		pub: newPublicIPCache(publicProbeURL),
-	}
-	m.Reload(apiURL, ttlSeconds, publicProbeURL)
+// New builds a mapper. maxIdle / maxPerHost tune outbound HTTP to mapper API (0 = use caller defaults from config).
+func New(rdb *redis.Client, apiURL string, ttlSeconds int, publicProbeURL string, maxIdle, maxPerHost int) *Mapper {
+	m := &Mapper{rdb: rdb, pub: newPublicIPCache(publicProbeURL)}
+	m.Reload(apiURL, ttlSeconds, publicProbeURL, maxIdle, maxPerHost)
 	return m
 }
 
-// Reload updates API URL, TTL, and public-IP probe URL.
-func (m *Mapper) Reload(apiURL string, ttlSeconds int, publicProbeURL string) {
+func (m *Mapper) buildClientLocked() {
+	mi, mh := m.httpMaxIdle, m.httpMaxIdleConnsPerHost
+	if mi < 1 {
+		mi = 128
+	}
+	if mh < 1 {
+		mh = 32
+	}
+	m.client = &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        mi,
+			MaxIdleConnsPerHost: mh,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
+}
+
+// Reload updates API URL, TTL, public-IP probe URL, and HTTP client pool limits.
+func (m *Mapper) Reload(apiURL string, ttlSeconds int, publicProbeURL string, maxIdle, maxPerHost int) {
 	if ttlSeconds <= 0 {
 		ttlSeconds = 300
 	}
 	m.mu.Lock()
 	m.apiURL = strings.TrimSpace(apiURL)
 	m.ttl = time.Duration(ttlSeconds) * time.Second
+	if maxIdle > 0 {
+		m.httpMaxIdle = maxIdle
+	}
+	if maxPerHost > 0 {
+		m.httpMaxIdleConnsPerHost = maxPerHost
+	}
+	m.buildClientLocked()
 	m.mu.Unlock()
 	if m.pub != nil {
 		m.pub.setProbeURL(publicProbeURL)
@@ -140,7 +157,10 @@ func (m *Mapper) fetchAPI(ctx context.Context, vip, apiURL string) (net.IP, erro
 	if err != nil {
 		return nil, err
 	}
-	resp, err := m.client.Do(req)
+	m.mu.RLock()
+	cli := m.client
+	m.mu.RUnlock()
+	resp, err := cli.Do(req)
 	if err != nil {
 		return nil, err
 	}

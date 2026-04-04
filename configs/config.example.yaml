@@ -17,6 +17,9 @@ redis:
     addr: 127.0.0.1:6379
     password: ""
     db: 0
+    pool_size: 256
+    min_idle_conns: 32
+    pool_fifo: true
 cn_dns:
     - name: cn-udp
       url: ""
@@ -33,6 +36,8 @@ mapper:
     public_ip_probe_url: ""
     default_cn_ecs: ""
     default_out_ecs: ""
+    http_max_idle_conns: 128
+    http_max_idle_conns_per_host: 32
 resolver:
     max_cache_ttl_seconds: 3600
     non_whitelist_action: nxdomain
@@ -49,6 +54,7 @@ resolver:
     upstream_ordered_fallback: false
     l1_cache_max_entries: 50000
     l1_cache_ttl_cap_seconds: 60
+    coalesce_upstream: true
 geoip:
     chnroute_url: https://ispip.clang.cn/all_cn.txt
     geoip_dat_url: https://github.com/v2fly/geoip/releases/latest/download/cn.dat

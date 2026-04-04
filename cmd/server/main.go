@@ -64,13 +64,17 @@ func main() {
 	}
 	store := config.NewStore(c)
 
+	poolFIFO := true
+	if c.Redis.PoolFIFO != nil {
+		poolFIFO = *c.Redis.PoolFIFO
+	}
 	rdb := redis.NewClient(&redis.Options{
 		Addr:         c.Redis.Addr,
 		Password:     c.Redis.Password,
 		DB:           c.Redis.DB,
-		PoolSize:     256,
-		MinIdleConns: 32,
-		PoolFIFO:     true,
+		PoolSize:     c.Redis.PoolSize,
+		MinIdleConns: c.Redis.MinIdleConns,
+		PoolFIFO:     poolFIFO,
 	})
 	ctx := context.Background()
 	if err := rdb.Ping(ctx).Err(); err != nil {
@@ -79,7 +83,7 @@ func main() {
 	}
 
 	rc := cache.NewRedis(rdb)
-	mapperSvc := mapper.New(rdb, c.Mapper.APIURL, c.Mapper.TTL, c.Mapper.PublicIPProbeURL)
+	mapperSvc := mapper.New(rdb, c.Mapper.APIURL, c.Mapper.TTL, c.Mapper.PublicIPProbeURL, c.Mapper.HTTPMaxIdleConns, c.Mapper.HTTPMaxIdleConnsPerHost)
 	wl := whitelist.New(rdb)
 	_ = wl.LoadFromRedis(ctx)
 	cn := geoip.New(config.ResolveGeoIPDownloadURL(c), c.GeoIP.RefreshMin, c.GeoIP.SourceFormat)
@@ -111,7 +115,7 @@ func main() {
 		if dnsSrv != nil {
 			dnsSrv.ReloadSecurity(c.Security.Blacklist)
 		}
-		mapperSvc.Reload(c.Mapper.APIURL, c.Mapper.TTL, c.Mapper.PublicIPProbeURL)
+		mapperSvc.Reload(c.Mapper.APIURL, c.Mapper.TTL, c.Mapper.PublicIPProbeURL, c.Mapper.HTTPMaxIdleConns, c.Mapper.HTTPMaxIdleConnsPerHost)
 		rl.Reload(*c.RateLimit.QPSPerIP, *c.RateLimit.Burst)
 		cn.SetSource(config.ResolveGeoIPDownloadURL(c), c.GeoIP.RefreshMin, c.GeoIP.SourceFormat)
 		if apiSrv != nil {

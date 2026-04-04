@@ -1,6 +1,7 @@
 package doh
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log"
@@ -126,7 +127,13 @@ func (s *Server) Handler() http.Handler {
 
 		start := time.Now()
 		req := &models.DNSRequest{Msg: msg, ClientVIP: vip}
-		resp, err := s.res.Resolve(r.Context(), req)
+		qms := cfg.Resolver.QueryTimeoutMS
+		if qms <= 0 {
+			qms = 3000
+		}
+		resolveCtx, cancelResolve := context.WithTimeout(r.Context(), time.Duration(qms)*time.Millisecond)
+		defer cancelResolve()
+		resp, err := s.res.Resolve(resolveCtx, req)
 		lat := time.Since(start).Milliseconds()
 		if err != nil {
 			if errors.Is(err, resolver.ErrOverload) {

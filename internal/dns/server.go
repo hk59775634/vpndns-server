@@ -81,6 +81,19 @@ func (s *Server) ServeTCP(ctx context.Context, addr string) error {
 	return t.ActivateAndServe()
 }
 
+func (s *Server) resolveCtx() (context.Context, context.CancelFunc) {
+	cfg := s.cfg.Get()
+	ms := 3000
+	if cfg != nil && cfg.Resolver.QueryTimeoutMS > 0 {
+		ms = cfg.Resolver.QueryTimeoutMS
+	}
+	d := time.Duration(ms)*time.Millisecond + 300*time.Millisecond
+	if d < time.Second {
+		d = time.Second
+	}
+	return context.WithTimeout(context.Background(), d)
+}
+
 func (s *Server) handle(w dns.ResponseWriter, r *dns.Msg) {
 	clientIP, _, _ := net.SplitHostPort(w.RemoteAddr().String())
 	if s.rl != nil && !s.rl.Allow(clientIP) {
@@ -126,7 +139,9 @@ func (s *Server) handle(w dns.ResponseWriter, r *dns.Msg) {
 		Msg:       r,
 		ClientVIP: clientIP,
 	}
-	resp, err := s.res.Resolve(context.Background(), req)
+	rctx, cancel := s.resolveCtx()
+	defer cancel()
+	resp, err := s.res.Resolve(rctx, req)
 	lat := time.Since(start).Milliseconds()
 	if err != nil {
 		if errors.Is(err, resolver.ErrOverload) {

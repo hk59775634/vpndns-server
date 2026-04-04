@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/miekg/dns"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/vpndns/cdn/internal/cache"
 	"github.com/vpndns/cdn/internal/config"
@@ -30,6 +32,7 @@ type Resolver struct {
 	cn       *geoip.CN
 	pool     *upstream.Pool
 	guard    *overload.Guard
+	sf       singleflight.Group
 }
 
 func New(cfg *config.Store, c *cache.Redis, l1 *cache.L1, m *mapper.Mapper, wl *whitelist.Matcher, cn *geoip.CN, pool *upstream.Pool, guard *overload.Guard) *Resolver {
@@ -142,7 +145,7 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 
 	// Non A/AAAA: CN only path (no IP-based split)
 	if qtype != dns.TypeA && qtype != dns.TypeAAAA {
-		cnResp, err := r.pool.QueryCN(ctx, req, ecsIP, ecsBits)
+		cnResp, err := r.queryCNCoalesced(ctx, cfg, req, ecsIP, ecsBits, ecsCacheKey)
 		if err != nil {
 			return nil, err
 		}
@@ -157,7 +160,7 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 	}
 
 	// 7–9 CN path with IP classification
-	cnResp, err := r.pool.QueryCN(ctx, req, ecsIP, ecsBits)
+	cnResp, err := r.queryCNCoalesced(ctx, cfg, req, ecsIP, ecsBits, ecsCacheKey)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +220,7 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 
 	outECSDefault := parseIP(cfg.Mapper.DefaultOUTECS)
 	outEcsIP, outEcsBits := ecsNetForQuery(realIP, clientECS, outECSDefault)
-	outResp, err := r.pool.QueryOUT(ctx, req, outEcsIP, outEcsBits)
+	outResp, err := r.queryOUTCoalesced(ctx, cfg, req, outEcsIP, outEcsBits, gkey)
 	if err != nil {
 		return nil, err
 	}
@@ -416,6 +419,59 @@ func filterAnswersByIPs(msg *dns.Msg, keep []net.IP) *dns.Msg {
 	}
 	out.Answer = ans
 	return out
+}
+
+func ecsUpstreamKeyForFlight(ip net.IP, bits int) string {
+	if ip == nil || bits <= 0 {
+		return "noecs"
+	}
+	return ip.String() + "/" + strconv.Itoa(bits)
+}
+
+func (r *Resolver) queryCNCoalesced(ctx context.Context, cfg *config.Config, req *models.DNSRequest, ecsIP net.IP, ecsBits int, ecsCacheKey string) (*models.DNSResponse, error) {
+	if cfg == nil {
+		return r.pool.QueryCN(ctx, req, ecsIP, ecsBits)
+	}
+	if cfg.Resolver.CoalesceUpstream != nil && !*cfg.Resolver.CoalesceUpstream {
+		return r.pool.QueryCN(ctx, req, ecsIP, ecsBits)
+	}
+	to := time.Duration(cfg.Resolver.QueryTimeoutMS) * time.Millisecond
+	if to <= 0 {
+		to = 3 * time.Second
+	}
+	key := "cn|" + ecsCacheKey + ":" + ecsUpstreamKeyForFlight(ecsIP, ecsBits)
+	v, err, _ := r.sf.Do(key, func() (interface{}, error) {
+		uctx, cancel := context.WithTimeout(context.Background(), to)
+		defer cancel()
+		return r.pool.QueryCN(uctx, req, ecsIP, ecsBits)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v.(*models.DNSResponse), nil
+}
+
+func (r *Resolver) queryOUTCoalesced(ctx context.Context, cfg *config.Config, req *models.DNSRequest, ecsIP net.IP, ecsBits int, gkey string) (*models.DNSResponse, error) {
+	if cfg == nil {
+		return r.pool.QueryOUT(ctx, req, ecsIP, ecsBits)
+	}
+	if cfg.Resolver.CoalesceUpstream != nil && !*cfg.Resolver.CoalesceUpstream {
+		return r.pool.QueryOUT(ctx, req, ecsIP, ecsBits)
+	}
+	to := time.Duration(cfg.Resolver.QueryTimeoutMS) * time.Millisecond
+	if to <= 0 {
+		to = 3 * time.Second
+	}
+	key := "out|" + gkey + ":" + ecsUpstreamKeyForFlight(ecsIP, ecsBits)
+	v, err, _ := r.sf.Do(key, func() (interface{}, error) {
+		uctx, cancel := context.WithTimeout(context.Background(), to)
+		defer cancel()
+		return r.pool.QueryOUT(uctx, req, ecsIP, ecsBits)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v.(*models.DNSResponse), nil
 }
 
 // LogRecord is emitted for admin query logs (optional hook).

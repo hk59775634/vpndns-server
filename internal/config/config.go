@@ -36,9 +36,13 @@ type Config struct {
 	} `yaml:"listen" json:"listen"`
 
 	Redis struct {
-		Addr     string `yaml:"addr" json:"addr"`
-		Password string `yaml:"password" json:"password"`
-		DB       int    `yaml:"db" json:"db"`
+		Addr         string `yaml:"addr" json:"addr"`
+		Password     string `yaml:"password" json:"password"`
+		DB           int    `yaml:"db" json:"db"`
+		PoolSize     int    `yaml:"pool_size" json:"pool_size"`             // go-redis 连接池大小（0=默认 256）
+		MinIdleConns int    `yaml:"min_idle_conns" json:"min_idle_conns"` // 池中最小空闲连接（0=默认 32）
+		// PoolFIFO: nil 或 true 时使用 FIFO；仅当显式 false 时关闭。
+		PoolFIFO *bool `yaml:"pool_fifo,omitempty" json:"pool_fifo,omitempty"`
 	} `yaml:"redis" json:"redis"`
 
 	CNDNS  []UpstreamSpec `yaml:"cn_dns" json:"cn_dns"`
@@ -48,6 +52,9 @@ type Config struct {
 		APIURL           string `yaml:"api_url" json:"api_url"`
 		TTL              int    `yaml:"ttl_seconds" json:"ttl_seconds"`
 		PublicIPProbeURL string `yaml:"public_ip_probe_url" json:"public_ip_probe_url"`
+		// HTTPMaxIdleConns / PerHost：外呼 mapper API 的 http.Transport 空闲连接上限（0=默认 128 / 32）。
+		HTTPMaxIdleConns        int `yaml:"http_max_idle_conns" json:"http_max_idle_conns"`
+		HTTPMaxIdleConnsPerHost int `yaml:"http_max_idle_conns_per_host" json:"http_max_idle_conns_per_host"`
 		// DefaultCNECS is used as EDNS Client Subnet source when asking cn_dns and VIP→IP mapping yields no usable IP (after mapper + client VIP parse).
 		DefaultCNECS string `yaml:"default_cn_ecs" json:"default_cn_ecs"`
 		// DefaultOUTECS is used as ECS when asking out_dns (after client EDNS subnet and mapped real IP, if any).
@@ -80,6 +87,8 @@ type Config struct {
 		// L1 in-memory DNS cache in front of Redis (0 = disabled).
 		L1CacheMaxEntries    int `yaml:"l1_cache_max_entries" json:"l1_cache_max_entries"`
 		L1CacheTTLCapSeconds int `yaml:"l1_cache_ttl_cap_seconds" json:"l1_cache_ttl_cap_seconds"`
+		// CoalesceUpstream: 相同上游查询在并发下合并为单次回源（singleflight）。nil 视为 true。
+		CoalesceUpstream *bool `yaml:"coalesce_upstream,omitempty" json:"coalesce_upstream,omitempty"`
 	} `yaml:"resolver" json:"resolver"`
 
 	GeoIP struct {
@@ -159,6 +168,18 @@ func (c *Config) Defaults() {
 	if c.Redis.Addr == "" {
 		c.Redis.Addr = "127.0.0.1:6379"
 	}
+	if c.Redis.PoolSize <= 0 {
+		c.Redis.PoolSize = 256
+	}
+	if c.Redis.MinIdleConns <= 0 {
+		c.Redis.MinIdleConns = 32
+	}
+	if c.Mapper.HTTPMaxIdleConns <= 0 {
+		c.Mapper.HTTPMaxIdleConns = 128
+	}
+	if c.Mapper.HTTPMaxIdleConnsPerHost <= 0 {
+		c.Mapper.HTTPMaxIdleConnsPerHost = 32
+	}
 	if c.Mapper.TTL <= 0 {
 		c.Mapper.TTL = 300
 	}
@@ -191,6 +212,10 @@ func (c *Config) Defaults() {
 	}
 	if c.Resolver.L1CacheTTLCapSeconds <= 0 {
 		c.Resolver.L1CacheTTLCapSeconds = 60
+	}
+	if c.Resolver.CoalesceUpstream == nil {
+		b := true
+		c.Resolver.CoalesceUpstream = &b
 	}
 	if c.RateLimit.PerIPLimiterIdleMinutes <= 0 {
 		c.RateLimit.PerIPLimiterIdleMinutes = 20
@@ -435,6 +460,21 @@ func Validate(c *Config) error {
 	}
 	if c.RateLimit.Burst != nil && *c.RateLimit.Burst < 0 {
 		return errors.New("rate_limit.burst must be >= 0 (0 = unlimited burst when qps>0)")
+	}
+	if c.Redis.PoolSize < 1 {
+		return errors.New("redis.pool_size must be >= 1")
+	}
+	if c.Redis.MinIdleConns < 0 {
+		return errors.New("redis.min_idle_conns must be >= 0")
+	}
+	if c.Redis.MinIdleConns > c.Redis.PoolSize {
+		return errors.New("redis.min_idle_conns must be <= redis.pool_size")
+	}
+	if c.Mapper.HTTPMaxIdleConns < 1 {
+		return errors.New("mapper.http_max_idle_conns must be >= 1")
+	}
+	if c.Mapper.HTTPMaxIdleConnsPerHost < 1 {
+		return errors.New("mapper.http_max_idle_conns_per_host must be >= 1")
 	}
 	return nil
 }
