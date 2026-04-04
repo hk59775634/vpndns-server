@@ -1,4 +1,4 @@
-# VPN DNS CDN
+# VPN DNS SERVER
 
 智能 DNS：国内/海外双上游、白名单、Redis 缓存、DoH、VIP 映射、GeoIP 分流与 Web 控制台。
 
