@@ -4,6 +4,8 @@
 
 **源码仓库：** [github.com/hk59775634/vpndns-server](https://github.com/hk59775634/vpndns-server)
 
+**预编译二进制：** [GitHub Releases](https://github.com/hk59775634/vpndns-server/releases)（多架构压缩包与 `SHA256SUMS.txt`）。维护者打包：`RELEASE_USE_DOCKER=1 ./scripts/release-build.sh v1.x.x`（需 Docker；本机 Go 1.22+ 也可直接执行该脚本）。
+
 ## 功能摘要
 
 - 监听：UDP/TCP DNS、DoH（可选 TLS，支持**证书文件路径**或 **PEM 内联**）
