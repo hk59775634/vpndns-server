@@ -6,6 +6,13 @@
 
 **预编译二进制：** [GitHub Releases](https://github.com/hk59775634/vpndns-server/releases)（多架构压缩包与 `SHA256SUMS.txt`）。维护者打包：`RELEASE_USE_DOCKER=1 ./scripts/release-build.sh v1.x.x`（需 Docker；本机 Go 1.22+ 也可直接执行该脚本）。
 
+**容器镜像（Docker Hub）：** [hk59775634/vpndns-server](https://hub.docker.com/r/hk59775634/vpndns-server) — 多架构 **`linux/amd64`、`linux/arm64`、`linux/arm/v7`**，标签 **`latest`** 与 **`v1.0.1`** 等与 [Releases](https://github.com/hk59775634/vpndns-server/releases) 版本对齐。
+
+```bash
+docker pull hk59775634/vpndns-server:v1.0.1
+# 或 docker compose up -d（见仓库 docker-compose.yml）
+```
+
 ## 功能摘要
 
 - 监听：UDP/TCP DNS、DoH（可选 TLS，支持**证书文件路径**或 **PEM 内联**）

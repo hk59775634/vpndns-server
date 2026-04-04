@@ -115,12 +115,41 @@ sudo rm /etc/systemd/system/vpndns-server.service
 sudo systemctl daemon-reload
 ```
 
-## 5. 防火墙与安全
+## 5. Docker Hub 与 Compose
+
+官方多架构镜像（**linux/amd64、linux/arm64、linux/arm/v7**）：
+
+- **Docker Hub：** [hk59775634/vpndns-server](https://hub.docker.com/r/hk59775634/vpndns-server)
+- **源码 / Issue：** [github.com/hk59775634/vpndns-server](https://github.com/hk59775634/vpndns-server)
+
+```bash
+# 固定版本（推荐生产）
+docker pull hk59775634/vpndns-server:v1.0.1
+
+# 最新构建
+docker pull hk59775634/vpndns-server:latest
+```
+
+容器内需 **外置 Redis**，并将 **`CONFIG`** 指向挂载的配置文件（默认 `/etc/vpndns/config.yaml`）。仓库根目录 **`docker-compose.yml`** 提供 Redis + `vpndns` 的示例（默认映射 DNS 到主机 **5353**，避免绑定主机 53 需 root）：
+
+```bash
+docker compose up -d
+# dig @127.0.0.1 -p 5353 example.com
+```
+
+维护者构建并推送多架构清单：
+
+```bash
+docker login
+VERSION=v1.0.1 ./scripts/docker-buildx-push.sh
+```
+
+## 6. 防火墙与安全
 
 - 仅对可信网络开放 DNS/DoH；管理端口建议仅内网或 SSH 隧道
 - 生产务必设置 `admin.api_key`，并为 DoH 配置 TLS + 可选 `doh_auth`
 
-### 5.1 每 IP 限速（`rate_limit`）
+### 6.1 每 IP 限速（`rate_limit`）
 
 在 **`config.yaml` → `rate_limit`** 中配置（支持热加载）：
 
@@ -150,7 +179,7 @@ rate_limit:
 
 **说明**：这与 **`resolver.global_resolve_qps`**（全局限流）不同；全局限流为进程级，见配置中 `global_resolve_qps` / `global_resolve_burst`（其中 **`global_resolve_qps: 0` 表示关闭**）。
 
-## 6. 升级
+## 7. 升级
 
 ```bash
 sudo systemctl stop vpndns-server
@@ -160,6 +189,6 @@ sudo systemctl start vpndns-server
 
 配置兼容时可直接启动；监听/Redis 变更通常需重启进程。
 
-## 7. 监控
+## 8. 监控
 
 见 [PROMETHEUS.md](PROMETHEUS.md)。控制台「监控面板」可查看 `/api/v1/meta` 与 `/metrics` 链接。

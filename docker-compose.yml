@@ -1,7 +1,7 @@
 # VPN DNS + Redis（Compose）
 #
-# 多架构镜像（linux/amd64 + linux/arm64）需用 buildx 构建并推送 manifest，例如：
-#   ./scripts/docker-buildx-push.sh
+# 多架构镜像（linux/amd64 + linux/arm64 + linux/arm/v7）由维护者 buildx 推送至 Docker Hub，例如：
+#   docker login && VERSION=v1.0.1 ./scripts/docker-buildx-push.sh
 # 推送后本文件中的 image 在 amd64 / arm64 主机会自动拉取对应架构。
 #
 # 启动：docker compose up -d
