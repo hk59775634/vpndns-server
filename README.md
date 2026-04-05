@@ -42,6 +42,20 @@ go build -o vpndns-server ./cmd/server
 
 依赖：**Redis**。仓库内请使用 **`configs/config.example.yaml`** 复制为 `configs/config.yaml`；**勿将含私钥与密钥的 `config.yaml` 提交到 Git**（已在 `.gitignore` 中忽略）。Docker Compose 可参考 `configs/docker-compose.config.yaml`。
 
+## UDP/53 QPS 压测参考（非承诺）
+
+仓库提供 **`cmd/udpbench`**：对指定 `host:53` 发 **UDP** 查询，用于粗测单机吞吐（与域名是否命中白名单、缓存、上游、Redis、`rate_limit` 等均相关）。
+
+```bash
+go build -o udpbench ./cmd/udpbench
+# 尽力打满（多 worker 并发 Exchange）
+./udpbench -addr 127.0.0.1:53 -domain example.com. -d 30s -w 400 -qps 0
+# 定目标总 QPS（内部用全局令牌桶 + 多 worker，避免单 worker 被 RTT 串行限制）
+./udpbench -addr 127.0.0.1:53 -domain example.com. -d 40s -qps 100000 -w 8000 -timeout 15s
+```
+
+**一次本机环回、重复查询同域名的粗测结论（仅供参考）：** 在 `rate_limit.qps_per_ip` 已放宽的前提下，**成功 QPS 常见落在约 3.3 万～4 万+**；将目标提到 **10 万 QPS** 时，该环境下**未达到**，且延迟明显上升。更高目标需多实例与负载均衡、更强硬件或不同业务比例（缓存命中、上游 RTT）下的复测。**此数字不是 SLA**，部署前请用你的配置与流量压测。
+
 ## 文档
 
 | 文档 | 说明 |
