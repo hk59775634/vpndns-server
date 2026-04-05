@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 新增
+
+- `cmd/udpbench`：UDP/53 压测小工具（`-qps` 定目标速率或多 worker flood）。
+
 ### 文档
 
 - `README.md`：增加 **UDP/53 QPS 压测参考**，说明 `cmd/udpbench` 用法与一次本机粗测结论（非性能承诺）。
