@@ -7,10 +7,12 @@
 ### 新增
 
 - `cmd/udpbench`：UDP/53 压测小工具（`-qps` 定目标速率或多 worker flood）。
+- `cmd/dohbench`：DoH POST 压测，与 `udpbench` 对齐（`-qps` / flood、`-k`、`-token`）。
 
 ### 文档
 
 - `README.md`：增加 **UDP/53 QPS 压测参考**，说明 `cmd/udpbench` 用法与一次本机粗测结论（非性能承诺）。
+- `README.md`：增加 **DoH 压测参考**（`cmd/dohbench`）。
 
 ## [1.0.1] — 2026-04-04
 

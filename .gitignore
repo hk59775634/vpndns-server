@@ -4,6 +4,7 @@
 *.exe
 vpndns-server
 /udpbench
+/dohbench
 
 # 本地配置（常含 TLS 私钥、API 密钥；勿提交）
 configs/config.yaml

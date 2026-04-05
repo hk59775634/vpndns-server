@@ -56,6 +56,22 @@ go build -o udpbench ./cmd/udpbench
 
 **一次本机环回、重复查询同域名的粗测结论（仅供参考）：** 在 `rate_limit.qps_per_ip` 已放宽的前提下，**成功 QPS 常见落在约 3.3 万～4 万+**；将目标提到 **10 万 QPS** 时，该环境下**未达到**，且延迟明显上升。更高目标需多实例与负载均衡、更强硬件或不同业务比例（缓存命中、上游 RTT）下的复测。**此数字不是 SLA**，部署前请用你的配置与流量压测。
 
+## DoH 压测参考（非承诺）
+
+**`cmd/dohbench`**：对 DoH 端点发 **POST `application/dns-message`**，模式与 `udpbench` 相同（`-qps 0` 尽力打满；`-qps N` 为全局目标 QPS + 多 worker 并发）。
+
+```bash
+go build -o dohbench ./cmd/dohbench
+# 明文 DoH（本地常见 :8053）
+./dohbench -url http://127.0.0.1:8053/dns-query -domain example.com. -d 30s -w 200 -qps 0
+# HTTPS 自签证书
+./dohbench -url https://127.0.0.1:8053/dns-query -domain example.com. -d 20s -w 200 -qps 0 -k
+# 定目标 QPS；若启用 doh_auth，加 -token <bearer>
+./dohbench -url http://127.0.0.1:8053/dns-query -domain example.com. -d 40s -qps 5000 -w 500 -timeout 20s
+```
+
+DoH 走 **TCP/TLS + HTTP**，通常同样硬件下单机 QPS **低于** UDP/53；具体与 HTTP/2、TLS、上游解析路径有关，需自行压测对比。
+
 ## 文档
 
 | 文档 | 说明 |
