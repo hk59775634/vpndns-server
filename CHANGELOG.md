@@ -15,6 +15,7 @@
 - `README.md`：增加 **UDP/53 QPS 压测参考**，说明 `cmd/udpbench` 用法与一次本机粗测结论（非性能承诺）。
 - `README.md`：DoH 双标准说明与 **DoH 压测参考**（`cmd/dohbench`、两种 style 及粗测表）。
 - `README.md`、`docs/DEPLOY.md`、`deploy/vpndns-server.service`：源码地址统一为 **https://github.com/hk59775634/vpndns-server**；测试/部署推荐 **`/etc/vpndns/config.yaml`**，并说明与 `listen.*` 对应的压测参数。
+- `README.md`：结构优化（资源表、压测合并为「压测参考」）；UDP/53 与 DoH 压测小节统一为「模式/参数表 + 命令 + 粗测表」风格，便于 GitHub 阅读。
 
 ## [1.0.1] — 2026-04-04
 
