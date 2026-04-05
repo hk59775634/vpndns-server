@@ -6,6 +6,17 @@
 
 （尚无条目。）
 
+## [1.0.3] — 2026-04-06
+
+### 控制台
+
+- Web 管理界面：云控制台风格布局（`#1677FF` 主色、可折叠侧栏、顶栏节点信息、用户菜单）；白名单数据表 + 右侧抽屉编辑/查看；统一 `openConfirm` 确认框；DNS 缓存表展示域名/类型/TTL/来源（由键名解析）。样式见 `cmd/server/web/static/css/console.css`，说明见 `docs/admin-ui-console.md`。
+
+### 文档
+
+- `docs/admin-ui-console.md`：控制台静态资源与组件结构说明。
+- `README.md`、`docs/DEPLOY.md`、`docker-compose.yml`：示例镜像版本 **v1.0.3**。
+
 ## [1.0.2] — 2026-04-05
 
 ### 新增

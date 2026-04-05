@@ -6,755 +6,83 @@
   <title>VPN DNS — 控制台</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --agh-green: #2d9361;
-      --agh-green-dim: #247a52;
-      --agh-green-glow: rgba(45, 147, 97, 0.25);
-      --bg: #f3f5f7;
-      --bg-sidebar: #252526;
-      --bg-sidebar-hover: #2d2d30;
-      --panel: #ffffff;
-      --text: #1a1d21;
-      --text-muted: #5c6570;
-      --border: #dde2e8;
-      --danger: #c42b2b;
-      --radius: 10px;
-      --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
-    }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; }
-    body {
-      font-family: "DM Sans", system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      display: flex;
-      font-size: 15px;
-      line-height: 1.45;
-    }
-    .layout {
-      display: flex;
-      width: 100%;
-      min-height: 100vh;
-    }
-    aside {
-      width: 240px;
-      flex-shrink: 0;
-      background: var(--bg-sidebar);
-      color: #e8eaed;
-      display: flex;
-      flex-direction: column;
-      border-right: 1px solid #1e1e1e;
-    }
-    .brand {
-      padding: 1.25rem 1.1rem 1rem;
-      border-bottom: 1px solid #333;
-    }
-    .brand strong {
-      display: block;
-      font-size: 1.05rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-    }
-    .brand span {
-      font-size: 0.75rem;
-      color: #8b9299;
-      margin-top: 0.2rem;
-      display: block;
-    }
-    .nav-scroll {
-      flex: 1;
-      overflow-y: auto;
-      padding: 0.5rem 0 1rem;
-    }
-    nav button {
-      display: flex;
-      align-items: center;
-      gap: 0.65rem;
-      width: 100%;
-      text-align: left;
-      padding: 0.55rem 1rem;
-      margin: 0 0.35rem;
-      border: none;
-      border-radius: 8px;
-      background: transparent;
-      color: #c8cdd3;
-      cursor: pointer;
-      font: inherit;
-      font-size: 0.9rem;
-      transition: background .15s, color .15s;
-    }
-    nav button:hover { background: var(--bg-sidebar-hover); color: #fff; }
-    nav button.active {
-      background: var(--agh-green-glow);
-      color: #7dffc4;
-      font-weight: 600;
-    }
-    nav .group {
-      font-size: 0.65rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #6d7379;
-      padding: 1rem 1rem 0.35rem;
-      font-weight: 600;
-    }
-    .content {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-    header.topbar {
-      background: var(--panel);
-      border-bottom: 1px solid var(--border);
-      padding: 0.85rem 1.75rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      flex-wrap: wrap;
-      box-shadow: var(--shadow);
-      position: sticky;
-      top: 0;
-      z-index: 5;
-    }
-    header.topbar h1 {
-      margin: 0;
-      font-size: 1.15rem;
-      font-weight: 600;
-    }
-    .top-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
-    main {
-      padding: 1.25rem 1.75rem 3rem;
-      flex: 1;
-      overflow: auto;
-    }
-    .page { display: none; max-width: 1100px; }
-    .page.active { display: block; }
-    /* 查询日志：占满主内容区宽度 */
-    .page.page-full {
-      max-width: none;
-      width: 100%;
-    }
-    .section {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.15rem 1.35rem;
-      margin-bottom: 1rem;
-      box-shadow: var(--shadow);
-    }
-    .section h2 {
-      margin: 0 0 0.85rem;
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .section h2::before {
-      content: "";
-      width: 3px;
-      height: 1rem;
-      background: var(--agh-green);
-      border-radius: 2px;
-    }
-    .hint {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin: -0.4rem 0 0.85rem;
-      line-height: 1.4;
-    }
-    .grid2 {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 0.85rem 1.25rem;
-    }
-    label.field {
-      display: flex;
-      flex-direction: column;
-      gap: 0.3rem;
-      font-size: 0.8rem;
-      font-weight: 500;
-      color: var(--text-muted);
-    }
-    label.field span.key { color: var(--text); }
-    label.field span.cfg-path {
-      display: block;
-      font-size: 0.72rem;
-      font-weight: 400;
-      color: var(--text-muted);
-      font-family: "JetBrains Mono", ui-monospace, monospace;
-      line-height: 1.35;
-    }
-    label.field-checkwrap { gap: 0.35rem !important; }
-    .field-checkwrap .check-row {
-      display: flex;
-      gap: 0.5rem;
-      align-items: flex-start;
-    }
-    .field-checkwrap .check-row input { margin-top: 0.2rem; flex-shrink: 0; }
-    .field-checkwrap .check-text { display: flex; flex-direction: column; gap: 0.12rem; min-width: 0; }
-    .pem-file-row {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-      margin: 0.2rem 0 0.35rem;
-    }
-    .pem-file-row input[type="file"] {
-      font-size: 0.76rem;
-      max-width: 100%;
-    }
-    input[type="text"], input[type="number"], input[type="password"], select, textarea {
-      font-family: "JetBrains Mono", ui-monospace, monospace;
-      font-size: 0.82rem;
-      padding: 0.45rem 0.65rem;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: #fafbfc;
-      color: var(--text);
-    }
-    input:focus, select:focus, textarea:focus {
-      outline: 2px solid var(--agh-green-glow);
-      border-color: var(--agh-green);
-      background: #fff;
-    }
-    textarea { resize: vertical; min-height: 88px; width: 100%; }
-    .check {
-      flex-direction: row !important;
-      align-items: center;
-      gap: 0.5rem !important;
-    }
-    .check input { width: auto; }
-    table.upstream {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.8rem;
-    }
-    table.upstream th {
-      text-align: left;
-      padding: 0.4rem 0.5rem;
-      color: var(--text-muted);
-      font-weight: 600;
-      border-bottom: 1px solid var(--border);
-    }
-    table.upstream td { padding: 0.35rem 0.5rem; vertical-align: middle; }
-    table.upstream input { width: 100%; min-width: 0; }
-    table.upstream .w-name { max-width: 120px; }
-    table.upstream .w-url { min-width: 200px; }
-    table.upstream .w-addr { min-width: 140px; }
-    table.upstream .w-w { width: 72px; }
-    .btn {
-      font-family: inherit;
-      font-size: 0.88rem;
-      font-weight: 600;
-      padding: 0.5rem 1rem;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
-      transition: filter .15s, transform .05s;
-    }
-    .btn:active { transform: scale(0.98); }
-    .btn-primary {
-      background: var(--agh-green);
-      color: #fff;
-    }
-    .btn-primary:hover { filter: brightness(1.06); }
-    .btn-secondary {
-      background: #eef1f4;
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-    .btn-secondary:hover { background: #e4e8ec; }
-    .btn-danger { background: #fde8e8; color: var(--danger); border: 1px solid #f5c2c2; }
-    .btn-sm { padding: 0.3rem 0.65rem; font-size: 0.8rem; }
-    .row-actions { margin-top: 0.65rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    .toast {
-      position: fixed;
-      bottom: 1.25rem;
-      right: 1.25rem;
-      padding: 0.75rem 1.1rem;
-      border-radius: 8px;
-      background: #1e1e1e;
-      color: #fff;
-      font-size: 0.88rem;
-      box-shadow: 0 8px 24px rgba(0,0,0,.2);
-      z-index: 100;
-      max-width: min(420px, 92vw);
-      display: none;
-    }
-    .toast.show { display: block; }
-    .toast.err { background: #5c2121; }
-    .toast.ok { background: var(--agh-green-dim); }
-    pre.log {
-      background: #1e1e1e;
-      color: #d4d4d4;
-      padding: 1rem;
-      border-radius: 8px;
-      overflow: auto;
-      max-height: 420px;
-      font-size: 0.78rem;
-      line-height: 1.35;
-    }
-    .pill {
-      display: inline-block;
-      padding: 0.15rem 0.5rem;
-      border-radius: 999px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      background: #e8f5ef;
-      color: var(--agh-green-dim);
-    }
-    .stat-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 0.75rem;
-      margin-bottom: 1rem;
-    }
-    .stat-cards .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1rem;
-      box-shadow: var(--shadow);
-    }
-    .stat-cards .card b { font-size: 1.25rem; display: block; color: var(--agh-green-dim); }
-    .stat-cards .card small { color: var(--text-muted); font-size: 0.75rem; }
-    /* 仪表盘 — 参考 AdGuard Home 大数字卡片 */
-    .dash-hero {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 1rem;
-      margin-bottom: 1rem;
-    }
-    @media (max-width: 1024px) {
-      .dash-hero { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    @media (max-width: 520px) {
-      .dash-hero { grid-template-columns: 1fr; }
-    }
-    .dash-metric {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.15rem 1.2rem;
-      box-shadow: var(--shadow);
-      border-left: 4px solid var(--agh-green);
-      min-height: 108px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-    .dash-metric.accent-block { border-left-color: #c45c5c; }
-    .dash-metric.accent-cache { border-left-color: #6b7c93; }
-    .dash-metric.accent-time { border-left-color: #5b7fd4; }
-    .dash-metric .dm-label {
-      font-size: 0.78rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 0.35rem;
-    }
-    .dash-metric .dm-value {
-      font-size: 1.85rem;
-      font-weight: 700;
-      letter-spacing: -0.03em;
-      color: var(--text);
-      line-height: 1.15;
-      font-variant-numeric: tabular-nums;
-    }
-    .dash-metric .dm-sub {
-      margin-top: 0.4rem;
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      line-height: 1.35;
-    }
-    .dash-detail {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-      gap: 0.75rem;
-      margin-bottom: 1rem;
-    }
-    .dash-dcell {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.75rem 0.9rem;
-      box-shadow: var(--shadow);
-    }
-    .dash-dcell .dv { font-size: 1.2rem; font-weight: 700; color: var(--agh-green-dim); font-variant-numeric: tabular-nums; }
-    .dash-dcell .dl { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem; line-height: 1.3; }
-    .dash-uptime {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      margin-bottom: 1rem;
-      padding: 0.65rem 0.85rem;
-      background: #f8f9fb;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-    }
-    .dash-uptime strong { color: var(--text); font-weight: 600; }
-    .security-banner {
-      background: #fff8e6;
-      border: 1px solid #f0e0b2;
-      padding: 0.65rem 1rem;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      margin-bottom: 1rem;
-      color: #6b5a2a;
-    }
-    .login-gate {
-      position: fixed;
-      inset: 0;
-      z-index: 200;
-      background: rgba(26, 29, 33, 0.55);
-      backdrop-filter: blur(4px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 1.5rem;
-    }
-    .login-gate.hidden { display: none !important; }
-    .geo-modal-panel {
-      max-width: 920px;
-      width: 100%;
-      max-height: min(90vh, 880px);
-      display: flex;
-      flex-direction: column;
-      padding: 1.25rem 1.5rem 1.5rem;
-    }
-    .geo-modal-panel h2 { margin: 0 0 0.35rem; font-size: 1.15rem; }
-    .geo-modal-panel .geo-modal-scroll {
-      flex: 1;
-      min-height: 0;
-      overflow: auto;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: #fafbfc;
-      margin-top: 0.65rem;
-    }
-    table.geo-cidr-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.8125rem;
-      font-family: ui-monospace, monospace;
-    }
-    table.geo-cidr-table th,
-    table.geo-cidr-table td {
-      padding: 0.4rem 0.65rem;
-      border-bottom: 1px solid var(--border);
-      text-align: left;
-    }
-    table.geo-cidr-table th {
-      position: sticky;
-      top: 0;
-      background: #e8ecf0;
-      font-size: 0.72rem;
-      color: var(--text-muted);
-    }
-    .geo-loaded-line {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.5rem 0.75rem;
-      margin: 0 0 0.85rem;
-      padding: 0.65rem 0.85rem;
-      background: #f0f7f2;
-      border: 1px solid #c5dcc8;
-      border-radius: 8px;
-      font-size: 0.88rem;
-      color: var(--text);
-    }
-    .geo-loaded-line strong { font-variant-numeric: tabular-nums; }
-    .wl-list-panel {
-      margin-top: 1rem;
-      max-height: min(55vh, 480px);
-      overflow-y: auto;
-      padding: 0.5rem 0.65rem;
-    }
-    .wl-row {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.4rem 0.15rem;
-      border-bottom: 1px solid var(--border);
-    }
-    .wl-row:last-child { border-bottom: none; }
-    .login-card {
-      background: var(--panel);
-      border-radius: var(--radius);
-      box-shadow: 0 8px 40px rgba(0,0,0,.12);
-      padding: 1.75rem 1.85rem;
-      max-width: 400px;
-      width: 100%;
-      border: 1px solid var(--border);
-    }
-    .login-card h2 { margin: 0 0 0.5rem; font-size: 1.2rem; }
-    .login-card .field-row { margin-top: 1rem; }
-    .login-card .login-err {
-      margin: 0.75rem 0 0;
-      font-size: 0.82rem;
-      color: var(--danger);
-      min-height: 1.2em;
-    }
-    /* AdGuard Home–style query log */
-    .log-table-wrap {
-      overflow-x: auto;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: #fafbfc;
-      max-height: min(70vh, 640px);
-      overflow-y: auto;
-      margin-top: 0.75rem;
-    }
-    table.log-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.8125rem;
-    }
-    table.log-table thead {
-      position: sticky;
-      top: 0;
-      z-index: 1;
-      background: linear-gradient(180deg, #f0f3f6 0%, #e8ecf0 100%);
-      box-shadow: 0 1px 0 var(--border);
-    }
-    table.log-table th {
-      text-align: left;
-      padding: 0.55rem 0.75rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      white-space: nowrap;
-    }
-    table.log-table td {
-      padding: 0.5rem 0.75rem;
-      border-top: 1px solid var(--border);
-      vertical-align: top;
-      font-family: "JetBrains Mono", ui-monospace, monospace;
-      font-size: 0.78rem;
-    }
-    table.log-table tbody tr:hover td { background: rgba(45, 147, 97, 0.06); }
-    .log-col-time { white-space: nowrap; color: var(--text-muted); width: 1%; }
-    .log-col-req .req-domain { font-weight: 600; color: var(--text); font-family: inherit; word-break: break-all; }
-    .log-col-req .req-type {
-      display: inline-block;
-      margin-top: 0.2rem;
-      font-size: 0.7rem;
-      padding: 0.1rem 0.4rem;
-      border-radius: 4px;
-      background: #e8ecf0;
-      color: var(--text-muted);
-      font-family: "JetBrains Mono", ui-monospace, monospace;
-    }
-    .log-col-resp .resp-main { color: var(--text); word-break: break-word; line-height: 1.35; }
-    .log-col-resp .resp-meta { margin-top: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.4rem 0.65rem; align-items: center; }
-    .log-col-resp .lat { color: var(--text-muted); font-size: 0.72rem; }
-    .route-pill {
-      display: inline-block;
-      font-size: 0.68rem;
-      font-weight: 600;
-      padding: 0.12rem 0.45rem;
-      border-radius: 4px;
-      font-family: "DM Sans", system-ui, sans-serif;
-      letter-spacing: 0.02em;
-    }
-    .route-pill.route-cn { background: #dff6ea; color: #1d6b4a; }
-    .route-pill.route-out { background: #e3eeff; color: #2a5580; }
-    .route-pill.route-cache { background: #eef0f3; color: #5c6570; }
-    .route-pill.route-block { background: #fff0e6; color: #a65a1a; }
-    .route-pill.route-bl { background: #fde8e8; color: #a32020; }
-    .route-pill.route-err { background: #f3e8fd; color: #6b3a9e; }
-    .route-pill.route-dash { background: #f0f0f0; color: #888; }
-    .log-col-client { min-width: 140px; }
-    .log-col-client .cl-line { margin: 0.15rem 0; line-height: 1.35; }
-    .log-col-client .cl-lbl {
-      display: inline-block;
-      min-width: 2.5rem;
-      color: var(--text-muted);
-      font-size: 0.68rem;
-      font-family: "DM Sans", system-ui, sans-serif;
-    }
-    .log-empty { padding: 2rem; text-align: center; color: var(--text-muted); font-size: 0.9rem; }
-    /* 白名单订阅 — AdGuard Home 风格状态区 */
-    .sub-agh-card {
-      background: linear-gradient(135deg, #f8faf9 0%, #f0f4f2 100%);
-      border: 1px solid #d4e0d9;
-      border-radius: var(--radius);
-      padding: 1.1rem 1.25rem;
-      margin-bottom: 1rem;
-      box-shadow: var(--shadow);
-    }
-    .sub-agh-head {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
-      margin-bottom: 1rem;
-      padding-bottom: 0.85rem;
-      border-bottom: 1px solid #d4e0d9;
-    }
-    .sub-agh-title {
-      font-weight: 700;
-      font-size: 0.95rem;
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .sub-agh-title::before {
-      content: "";
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--agh-green);
-      box-shadow: 0 0 0 3px var(--agh-green-glow);
-    }
-    .sub-agh-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 0.85rem 1rem;
-    }
-    .sub-agh-stat .sn {
-      display: block;
-      font-size: 1.35rem;
-      font-weight: 700;
-      color: var(--agh-green-dim);
-      font-variant-numeric: tabular-nums;
-      line-height: 1.2;
-    }
-    .sub-agh-stat .sl {
-      font-size: 0.72rem;
-      color: var(--text-muted);
-      margin-top: 0.25rem;
-      line-height: 1.35;
-    }
-    .sub-agh-meta {
-      margin-top: 0.85rem;
-      font-size: 0.78rem;
-      color: var(--text-muted);
-      line-height: 1.5;
-    }
-    .sub-agh-meta code { font-size: 0.72rem; background: #e8ece9; padding: 0.1rem 0.35rem; border-radius: 4px; }
-    .sub-agh-err {
-      margin-top: 0.65rem;
-      padding: 0.5rem 0.65rem;
-      background: #fdecec;
-      border: 1px solid #f5c4c4;
-      border-radius: 6px;
-      font-size: 0.8rem;
-      color: #8b2a2a;
-      display: none;
-    }
-    .sub-agh-err.show { display: block; }
-    .cache-list-toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.75rem 1rem;
-      margin-bottom: 0.85rem;
-    }
-    .cache-list-toolbar .field { margin: 0; flex-direction: row; align-items: center; gap: 0.4rem; }
-    .cache-list-toolbar .field span.key { font-size: 0.8rem; }
-    .cache-table-wrap {
-      overflow: auto;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: #fafbfc;
-      max-height: min(70vh, 560px);
-    }
-    table.cache-list {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.8rem;
-    }
-    table.cache-list th {
-      text-align: left;
-      padding: 0.45rem 0.55rem;
-      position: sticky;
-      top: 0;
-      background: var(--panel);
-      z-index: 1;
-      border-bottom: 1px solid var(--border);
-      color: var(--text-muted);
-      font-weight: 600;
-    }
-    table.cache-list td {
-      padding: 0.4rem 0.55rem;
-      border-bottom: 1px solid #eef0f3;
-      vertical-align: top;
-    }
-    table.cache-list td.cache-key {
-      font-family: "JetBrains Mono", ui-monospace, monospace;
-      font-size: 0.74rem;
-      max-width: min(36vw, 320px);
-      word-break: break-all;
-    }
-    table.cache-list td.cache-summary {
-      color: var(--text);
-      word-break: break-word;
-    }
-    table.cache-list td.cache-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .cache-pager {
-      display: flex;
-      align-items: center;
-      gap: 0.65rem;
-      margin-top: 0.9rem;
-      flex-wrap: wrap;
-    }
-  </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/console.css" />
 </head>
 <body>
-  <div class="layout">
+  <div class="layout" id="app-layout">
     <aside>
       <div class="brand">
-        <strong>VPN DNS</strong>
-        <span>智能解析 · 控制台</span>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;width:100%">
+          <div>
+            <strong>VPN DNS</strong>
+            <span>智能解析 · 云控制台</span>
+          </div>
+          <button type="button" id="sidebar-toggle" aria-label="折叠导航" title="折叠/展开">≡</button>
+        </div>
       </div>
       <div class="nav-scroll">
-        <div class="group">总览</div>
+        <div class="group nav-group-label">控制面板</div>
         <nav>
-          <button type="button" data-page="dash" class="active">仪表盘</button>
+          <button type="button" data-page="dash" class="active nav-item"><span class="nav-text">仪表盘</span></button>
+          <button type="button" data-page="monitor" class="nav-item"><span class="nav-text">监控与元数据</span></button>
         </nav>
-        <div class="group">设置</div>
+        <div class="group nav-group-label">DNS 管理</div>
         <nav>
-          <button type="button" data-page="general">常规设置</button>
-          <button type="button" data-page="redis">Redis 连接</button>
-          <button type="button" data-page="upstream">上游 DNS</button>
-          <button type="button" data-page="resolver">解析与限速</button>
-          <button type="button" data-page="mapper">VIP 映射</button>
-          <button type="button" data-page="geoip">中国 IP 库</button>
+          <button type="button" data-page="resolver" class="nav-item"><span class="nav-text">解析与限速</span></button>
+          <button type="button" data-page="whitelist" class="nav-item"><span class="nav-text">白名单</span></button>
+          <button type="button" data-page="subscribe" class="nav-item"><span class="nav-text">白名单订阅</span></button>
+          <button type="button" data-page="cache" class="nav-item"><span class="nav-text">DNS 缓存</span></button>
         </nav>
-        <div class="group">过滤</div>
+        <div class="group nav-group-label">节点与网络</div>
         <nav>
-          <button type="button" data-page="security">安全与黑名单</button>
-          <button type="button" data-page="whitelist">白名单</button>
-          <button type="button" data-page="subscribe">白名单订阅</button>
+          <button type="button" data-page="mapper" class="nav-item"><span class="nav-text">VIP 映射（ECS）</span></button>
+          <button type="button" data-page="geoip" class="nav-item"><span class="nav-text">中国 IP 库</span></button>
+          <button type="button" data-page="upstream" class="nav-item"><span class="nav-text">上游 DNS</span></button>
         </nav>
-        <div class="group">工具</div>
+        <div class="group nav-group-label">安全与用户</div>
         <nav>
-          <button type="button" data-page="monitor">监控面板</button>
-          <button type="button" data-page="cache">DNS 缓存</button>
-          <button type="button" data-page="logs">查询日志</button>
-          <button type="button" data-page="system">从磁盘重载</button>
+          <button type="button" data-page="security" class="nav-item"><span class="nav-text">安全与黑名单</span></button>
+          <button type="button" data-page="general" class="nav-item"><span class="nav-text">账号与常规</span></button>
+        </nav>
+        <div class="group nav-group-label">日志与运维</div>
+        <nav>
+          <button type="button" data-page="logs" class="nav-item"><span class="nav-text">查询日志</span></button>
+          <button type="button" data-page="system" class="nav-item"><span class="nav-text">从磁盘重载</span></button>
+        </nav>
+        <div class="group nav-group-label">系统设置</div>
+        <nav>
+          <button type="button" data-page="redis" class="nav-item"><span class="nav-text">Redis 连接</span></button>
         </nav>
       </div>
     </aside>
     <div class="content">
-      <header class="topbar">
-        <h1 id="page-title">仪表盘</h1>
+      <header class="topbar console-topbar">
+        <div class="topbar-left">
+          <h1 id="page-title">仪表盘</h1>
+        </div>
+        <div class="topbar-center">
+          <div class="region-select" title="当前进程监听（只读）">
+            节点 <strong id="console-region-label">本机</strong>
+            <span style="opacity:.7">·</span>
+            <span id="console-region-sub">管理端口 —</span>
+          </div>
+        </div>
         <div class="top-actions">
           <span class="pill" id="health-pill">检查中…</span>
-          <button type="button" class="btn btn-secondary btn-sm" id="btn-logout">退出登录</button>
-          <button type="button" class="btn btn-secondary btn-sm" id="btn-load-cfg">重新读取配置</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-load-cfg">重新读取</button>
           <button type="button" class="btn btn-primary" id="btn-save-cfg">保存并应用</button>
+          <div class="user-menu-wrap">
+            <button type="button" class="user-menu-btn" id="user-menu-btn" aria-expanded="false" aria-haspopup="true">
+              <span id="user-menu-label">管理员</span> ▾
+            </button>
+            <div class="dropdown-panel" id="user-menu-dd" role="menu">
+              <button type="button" id="menu-goto-general">账号与 API 密钥</button>
+              <button type="button" id="menu-goto-logs">查询日志</button>
+              <hr />
+              <button type="button" id="btn-logout">退出登录</button>
+            </div>
+          </div>
         </div>
       </header>
       <main>
@@ -961,6 +289,20 @@
           <div class="section">
             <h2>VIP → 真实 IP 映射</h2>
             <p class="hint">将 VPN 虚拟 IP 映射为用于 ECS 的公网 IP。可选 HTTP 接口；映射结果会缓存到 Redis，有效期见下方 TTL。若客户端已是公网 IP，将直接使用，不查映射。</p>
+            <div class="ecs-flow" aria-label="ECS 数据流示意">
+              <span class="step">客户端 VIP</span>
+              <span class="arrow">→</span>
+              <span class="step">映射 API / 本机出口</span>
+              <span class="arrow">→</span>
+              <span class="step">公网 IP（ECS 源）</span>
+              <span class="arrow">→</span>
+              <span class="step">GeoIP 分流</span>
+              <span class="arrow">→</span>
+              <span class="step">CN / OUT 上游</span>
+              <span class="arrow">→</span>
+              <span class="step">DNS 应答</span>
+            </div>
+            <p class="hint" style="margin-top:12px">上图仅为逻辑示意；实际以配置与解析路径为准。缓存键形态：<code>dns:域名:类型:global</code> 或 <code>dns:域名:类型:ecs:子网</code>。</p>
             <p class="hint">映射 API 留空时：Redis 未命中后使用<strong>本机公网出口 IP</strong>（由下方探测 URL 获取，默认 ipify）写入 Redis。</p>
             <p class="hint"><strong>默认 ECS</strong>：发往国内上游时，若 VIP 无法解析出映射/公网 IP，则用「默认国内 ECS」作为 EDNS Client Subnet；发往海外上游时，在客户端未带 ECS 且映射 IP 也不可用时，用「默认全球 ECS」（仍优先使用客户端 ECS 与映射得到的 IP）。</p>
             <div class="grid2">
@@ -1048,7 +390,18 @@
               <button type="button" class="btn btn-secondary btn-sm" id="wl-page-prev" disabled>上一页</button>
               <button type="button" class="btn btn-secondary btn-sm" id="wl-page-next" disabled>下一页</button>
             </div>
-            <div id="wl-list" class="log wl-list-panel" aria-live="polite">加载中…</div>
+            <div class="data-table-wrap" id="wl-table-wrap">
+              <table class="data-table" id="wl-table" aria-label="白名单规则">
+                <thead>
+                  <tr>
+                    <th>规则模式</th>
+                    <th class="col-actions">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="wl-list-tbody"></tbody>
+              </table>
+            </div>
+            <div id="wl-list-empty" class="table-empty" role="status">加载中…</div>
           </div>
         </div>
 
@@ -1115,10 +468,13 @@
               <table class="cache-list hidden" id="cache-list-table" aria-label="DNS 缓存条目">
                 <thead>
                   <tr>
-                    <th>Redis 键</th>
+                    <th>域名</th>
+                    <th class="cache-num">类型</th>
                     <th class="cache-num">TTL</th>
+                    <th>来源</th>
                     <th>内容摘要</th>
-                    <th class="cache-num" title="Redis 中 base64 字符串字符数">值长度</th>
+                    <th class="cache-num" title="Redis 中 base64 字符串字符数">值长</th>
+                    <th>Redis 键</th>
                   </tr>
                 </thead>
                 <tbody id="cache-list-tbody"></tbody>
@@ -1134,7 +490,7 @@
             <h2>清理 DNS 缓存</h2>
             <p class="hint">删除上方模式中<strong>所有</strong>匹配键（与列表使用同一通配符）。默认 <code>dns:*</code>。</p>
             <div class="row-actions">
-              <button type="button" class="btn btn-danger" id="cache-flush">删除匹配键</button>
+              <button type="button" class="btn btn-danger" id="cache-flush">清除缓存（删除匹配键）</button>
             </div>
           </div>
         </div>
@@ -1209,6 +565,23 @@
       </main>
     </div>
   </div>
+  <div class="drawer-backdrop" id="drawer-backdrop" aria-hidden="true"></div>
+  <aside class="app-drawer" id="app-drawer" aria-hidden="true" aria-labelledby="drawer-title">
+    <div class="drawer-header">
+      <h3 id="drawer-title">详情</h3>
+      <button type="button" class="btn-icon" id="drawer-close" aria-label="关闭抽屉">×</button>
+    </div>
+    <div class="drawer-body" id="drawer-body"></div>
+  </aside>
+  <div class="modal-overlay" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-msg">
+    <div class="modal-card">
+      <p id="confirm-msg"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="confirm-cancel">取消</button>
+        <button type="button" class="btn btn-danger" id="confirm-ok">确定</button>
+      </div>
+    </div>
+  </div>
   <div class="toast" id="toast"></div>
 
   <div id="geo-cidr-modal" class="login-gate hidden" aria-hidden="true" role="dialog" aria-labelledby="geo-modal-title">
@@ -1255,10 +628,10 @@
   <script>
 (function () {
   const titles = {
-    dash: '仪表盘', general: '常规设置', redis: 'Redis 连接', upstream: '上游 DNS',
-    resolver: '解析与限速', mapper: 'VIP 映射', geoip: '中国 IP 库（GeoIP）',
-    security: '安全与黑名单', whitelist: '白名单', subscribe: '白名单订阅',
-    cache: 'DNS 缓存', logs: '查询日志', system: '从磁盘重载', monitor: '监控面板'
+    dash: '仪表盘', general: '账号与常规设置', redis: 'Redis 连接', upstream: '上游 DNS',
+    resolver: '解析与限速', mapper: 'VIP 映射（ECS）', geoip: '中国 IP 库（GeoIP）',
+    security: '安全与黑名单', whitelist: '白名单（DNS）', subscribe: '白名单订阅',
+    cache: 'DNS 缓存', logs: '查询日志', system: '从磁盘重载', monitor: '监控与元数据'
   };
   let cfg = null;
   let dashTimer = null;
@@ -1291,7 +664,7 @@
 
   function showPage(id) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('aside nav button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('aside nav button[data-page]').forEach(b => b.classList.remove('active'));
     const page = document.getElementById('page-' + id);
     if (page) page.classList.add('active');
     const btn = document.querySelector('aside nav button[data-page="' + id + '"]');
@@ -1327,6 +700,81 @@
     btn.addEventListener('click', () => showPage(btn.dataset.page));
   });
   document.getElementById('geo-source-format').addEventListener('change', syncGeoUrlRows);
+
+  document.getElementById('sidebar-toggle').addEventListener('click', () => {
+    document.getElementById('app-layout').classList.toggle('sidebar-collapsed');
+  });
+  const userMenuBtn = document.getElementById('user-menu-btn');
+  const userMenuDd = document.getElementById('user-menu-dd');
+  userMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = userMenuDd.classList.toggle('open');
+    userMenuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  document.addEventListener('click', () => {
+    userMenuDd.classList.remove('open');
+    userMenuBtn.setAttribute('aria-expanded', 'false');
+    document.querySelectorAll('.more-dd-panel.open').forEach(p => p.classList.remove('open'));
+  });
+  userMenuDd.addEventListener('click', (e) => e.stopPropagation());
+  document.getElementById('menu-goto-general').onclick = () => { userMenuDd.classList.remove('open'); showPage('general'); };
+  document.getElementById('menu-goto-logs').onclick = () => { userMenuDd.classList.remove('open'); showPage('logs'); };
+
+  function openDrawer(title, html) {
+    document.getElementById('drawer-title').textContent = title;
+    document.getElementById('drawer-body').innerHTML = html;
+    document.getElementById('drawer-backdrop').classList.add('open');
+    document.getElementById('app-drawer').classList.add('open');
+    document.getElementById('drawer-backdrop').setAttribute('aria-hidden', 'false');
+    document.getElementById('app-drawer').setAttribute('aria-hidden', 'false');
+  }
+  function closeDrawer() {
+    document.getElementById('drawer-backdrop').classList.remove('open');
+    document.getElementById('app-drawer').classList.remove('open');
+    document.getElementById('drawer-backdrop').setAttribute('aria-hidden', 'true');
+    document.getElementById('app-drawer').setAttribute('aria-hidden', 'true');
+  }
+  document.getElementById('drawer-close').onclick = closeDrawer;
+  document.getElementById('drawer-backdrop').onclick = closeDrawer;
+
+  function openConfirm(msg) {
+    return new Promise((resolve) => {
+      const m = document.getElementById('confirm-modal');
+      document.getElementById('confirm-msg').textContent = msg;
+      m.classList.add('open');
+      const ok = document.getElementById('confirm-ok');
+      const cancel = document.getElementById('confirm-cancel');
+      function cleanup() {
+        m.classList.remove('open');
+        ok.onclick = null;
+        cancel.onclick = null;
+      }
+      cancel.onclick = () => { cleanup(); resolve(false); };
+      ok.onclick = () => { cleanup(); resolve(true); };
+    });
+  }
+
+  function updateRegionFromMeta(meta) {
+    const sub = document.getElementById('console-region-sub');
+    const lab = document.getElementById('console-region-label');
+    if (!lab || !sub) return;
+    if (!meta || !meta.listen) {
+      sub.textContent = '管理端口 —';
+      return;
+    }
+    lab.textContent = '本机节点';
+    const a = meta.listen.admin || '—';
+    sub.textContent = '管理 ' + a + ' · DNS ' + (meta.listen.udp || '—');
+  }
+
+  function syncUserMenuLabel() {
+    const el = document.getElementById('user-menu-label');
+    if (!el) return;
+    const inp = document.getElementById('admin-username');
+    const loginU = document.getElementById('login-user');
+    const name = (inp && inp.value.trim()) || (loginU && loginU.value.trim()) || '';
+    el.textContent = name || '管理员';
+  }
 
   function wirePemFileInput(fileId, textareaId) {
     const fin = document.getElementById(fileId);
@@ -1559,6 +1007,8 @@
     const data = await r.json();
     configToForm(data);
     toast('已加载当前配置', true);
+    syncUserMenuLabel();
+    await refreshRegionOnly();
   }
 
   async function saveConfig() {
@@ -1667,7 +1117,7 @@
     wlListPage = 1;
     loadWhitelist();
   };
-  async function deleteWhitelistPatterns(patterns) {
+  async function deleteWhitelistPatterns(patterns, opts) {
     const clean = [];
     const seen = {};
     for (const s of patterns) {
@@ -1678,8 +1128,8 @@
       }
     }
     if (!clean.length) {
-      toast('没有可移除的规则', false);
-      return;
+      if (!opts || !opts.silent) toast('没有可移除的规则', false);
+      return false;
     }
     const r = await fetch('/api/v1/whitelist', req({
       method: 'DELETE',
@@ -1688,10 +1138,11 @@
     }));
     if (!r.ok) {
       toast(await r.text(), false);
-      return;
+      return false;
     }
-    toast('已从 Redis 移除', true);
-    await loadWhitelist();
+    if (!opts || !opts.silent) toast('已从 Redis 移除', true);
+    if (!opts || !opts.skipReload) await loadWhitelist();
+    return true;
   }
   function updateWlPager() {
     const per = wlLastMeta.per_page || 20;
@@ -1707,60 +1158,133 @@
     if (delQ) delQ.disabled = !wlListQuery || tm <= 0;
   }
   function renderWhitelistList(patterns) {
-    const el = document.getElementById('wl-list');
-    el.innerHTML = '';
-    el.className = 'log wl-list-panel';
+    const tbody = document.getElementById('wl-list-tbody');
+    const wrap = document.getElementById('wl-table-wrap');
+    const empty = document.getElementById('wl-list-empty');
+    tbody.innerHTML = '';
     if (!patterns || !patterns.length) {
+      wrap.classList.add('hidden');
+      empty.classList.remove('hidden');
       if (wlListQuery && wlLastMeta.total_matched === 0) {
-        el.textContent = '（当前查询无匹配）';
+        empty.textContent = '当前查询无匹配规则';
       } else if (!wlListQuery && wlLastMeta.total_in_set === 0) {
-        el.textContent = '（Redis 中暂无白名单条目）';
+        empty.textContent = 'Redis 中暂无白名单条目';
       } else {
-        el.textContent = '（本页无数据）';
+        empty.textContent = '本页无数据';
       }
       return;
     }
+    wrap.classList.remove('hidden');
+    empty.classList.add('hidden');
     for (let i = 0; i < patterns.length; i++) {
       const p = patterns[i];
-      const row = document.createElement('div');
-      row.className = 'wl-row';
-      const span = document.createElement('code');
-      span.style.flex = '1';
-      span.style.textAlign = 'left';
-      span.style.wordBreak = 'break-all';
-      span.style.fontSize = '0.85rem';
-      span.style.background = 'transparent';
-      span.textContent = p;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'btn btn-danger btn-sm';
-      btn.textContent = '删除';
-      btn.setAttribute('aria-label', '删除 ' + p);
-      btn.onclick = function () {
-        deleteWhitelistPatterns([p]);
+      const tr = document.createElement('tr');
+      const tdPat = document.createElement('td');
+      const code = document.createElement('code');
+      code.style.cssText = 'font-size:0.85rem;word-break:break-all;font-family:JetBrains Mono,monospace';
+      code.textContent = p;
+      tdPat.appendChild(code);
+      const tdAct = document.createElement('td');
+      tdAct.className = 'col-actions';
+      const act = document.createElement('div');
+      act.className = 'action-btns';
+      const bView = document.createElement('button');
+      bView.type = 'button';
+      bView.className = 'btn-link';
+      bView.textContent = '查看';
+      bView.onclick = () => {
+        openDrawer('查看白名单规则', '<p class="hint">只读</p><label class="field"><span class="key">模式</span><textarea readonly rows="5" style="width:100%">' + escHtml(p) + '</textarea></label>');
       };
-      row.appendChild(span);
-      row.appendChild(btn);
-      el.appendChild(row);
+      const bEdit = document.createElement('button');
+      bEdit.type = 'button';
+      bEdit.className = 'btn-link';
+      bEdit.textContent = '编辑';
+      bEdit.onclick = () => {
+        openDrawer('编辑白名单规则', '<p class="hint">保存将先删除旧规则再写入新规则（同一 API，两次请求）。</p>' +
+          '<label class="field"><span class="key">规则模式</span><input type="text" id="wl-drawer-edit" style="width:100%" autocomplete="off" /></label>' +
+          '<div class="row-actions" style="margin-top:16px"><button type="button" class="btn btn-primary" id="wl-drawer-save">保存</button></div>');
+        document.getElementById('wl-drawer-edit').value = p;
+        document.getElementById('wl-drawer-save').onclick = async () => {
+          const nv = document.getElementById('wl-drawer-edit').value.trim().toLowerCase();
+          if (!nv) { toast('规则不能为空', false); return; }
+          if (nv === String(p).toLowerCase()) { closeDrawer(); return; }
+          if (!(await deleteWhitelistPatterns([p], { skipReload: true, silent: true }))) return;
+          const r = await fetch('/api/v1/whitelist', req({ method: 'POST', headers: headers(true), body: JSON.stringify({ patterns: [nv] }) }));
+          if (!r.ok) { toast(await r.text(), false); return; }
+          toast('已更新规则', true);
+          closeDrawer();
+          await loadWhitelist();
+        };
+      };
+      const bDel = document.createElement('button');
+      bDel.type = 'button';
+      bDel.className = 'btn-link danger';
+      bDel.textContent = '删除';
+      bDel.onclick = async () => {
+        if (!(await openConfirm('确定从白名单删除「' + p + '」？'))) return;
+        await deleteWhitelistPatterns([p]);
+      };
+      const moreWrap = document.createElement('span');
+      moreWrap.className = 'more-dd-wrap';
+      const moreBtn = document.createElement('button');
+      moreBtn.type = 'button';
+      moreBtn.className = 'btn btn-secondary btn-sm';
+      moreBtn.textContent = '更多 ▾';
+      const morePan = document.createElement('div');
+      morePan.className = 'more-dd-panel';
+      const bCopy = document.createElement('button');
+      bCopy.type = 'button';
+      bCopy.textContent = '复制规则';
+      bCopy.onclick = (ev) => {
+        ev.stopPropagation();
+        morePan.classList.remove('open');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(p).then(() => toast('已复制', true), () => toast('复制失败', false));
+        } else {
+          toast('浏览器不支持剪贴板', false);
+        }
+      };
+      moreBtn.onclick = (ev) => {
+        ev.stopPropagation();
+        document.querySelectorAll('.more-dd-panel.open').forEach(x => { if (x !== morePan) x.classList.remove('open'); });
+        morePan.classList.toggle('open');
+      };
+      morePan.appendChild(bCopy);
+      moreWrap.appendChild(moreBtn);
+      moreWrap.appendChild(morePan);
+      act.appendChild(bView);
+      act.appendChild(bEdit);
+      act.appendChild(bDel);
+      act.appendChild(moreWrap);
+      tdAct.appendChild(act);
+      tr.appendChild(tdPat);
+      tr.appendChild(tdAct);
+      tbody.appendChild(tr);
     }
   }
   async function loadWhitelist(options) {
     const skipAdjust = options && options.skipAdjustPage;
-    const el = document.getElementById('wl-list');
+    const wrap = document.getElementById('wl-table-wrap');
+    const empty = document.getElementById('wl-list-empty');
+    const tbody = document.getElementById('wl-list-tbody');
     try {
       const params = new URLSearchParams({ page: String(wlListPage), per_page: '20' });
       if (wlListQuery) params.set('q', wlListQuery);
       const r = await fetch('/api/v1/whitelist?' + params.toString(), req({ headers: headers(false) }));
       const text = await r.text();
       if (!r.ok) {
-        el.className = 'log wl-list-panel';
-        el.textContent = '加载失败：' + text;
+        wrap.classList.add('hidden');
+        empty.classList.remove('hidden');
+        tbody.innerHTML = '';
+        empty.textContent = '加载失败：' + text;
         return;
       }
       const data = JSON.parse(text);
       if (data == null || typeof data.total_in_set !== 'number') {
-        el.className = 'log wl-list-panel';
-        el.textContent = '接口返回格式异常';
+        wrap.classList.add('hidden');
+        empty.classList.remove('hidden');
+        tbody.innerHTML = '';
+        empty.textContent = '接口返回格式异常';
         return;
       }
       wlLastMeta = {
@@ -1776,13 +1300,20 @@
       renderWhitelistList(patterns);
       updateWlPager();
     } catch (e) {
-      el.className = 'log wl-list-panel';
-      el.textContent = String(e);
+      wrap.classList.add('hidden');
+      empty.classList.remove('hidden');
+      tbody.innerHTML = '';
+      empty.textContent = String(e);
     }
   }
-  document.getElementById('wl-remove').onclick = () => {
+  document.getElementById('wl-remove').onclick = async () => {
     const raw = document.getElementById('wl-input').value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-    deleteWhitelistPatterns(raw);
+    if (!raw.length) {
+      toast('没有可移除的规则', false);
+      return;
+    }
+    if (!(await openConfirm('确定从 Redis 移除输入框中的 ' + raw.length + ' 条规则？'))) return;
+    await deleteWhitelistPatterns(raw);
   };
   document.getElementById('wl-refresh').onclick = () => loadWhitelist();
   document.getElementById('wl-clear-all').onclick = async () => {
@@ -1800,7 +1331,7 @@
       toast('当前 Redis 白名单为空', false);
       return;
     }
-    if (!window.confirm('确定清空 Redis 中的全部白名单规则？共 ' + fmtCount(n) + ' 条。此操作不可撤销。')) return;
+    if (!(await openConfirm('确定清空 Redis 中的全部白名单规则？共 ' + fmtCount(n) + ' 条。此操作不可撤销。'))) return;
     const r = await fetch('/api/v1/whitelist', req({
       method: 'DELETE',
       headers: headers(true),
@@ -1866,7 +1397,7 @@
       toast('当前查询无匹配项', false);
       return;
     }
-    if (!window.confirm('确定从 Redis 删除所有包含「' + q + '」的白名单规则？共 ' + n + ' 条。')) return;
+    if (!(await openConfirm('确定从 Redis 删除所有包含「' + q + '」的白名单规则？共 ' + n + ' 条。'))) return;
     const r = await fetch('/api/v1/whitelist', req({
       method: 'DELETE',
       headers: headers(true),
@@ -1990,6 +1521,21 @@
     return (x / 86400).toFixed(1) + ' 天';
   }
 
+  function parseDnsCacheKey(key) {
+    const k = String(key || '');
+    const parts = k.split(':');
+    if (parts[0] !== 'dns' || parts.length < 4) {
+      return { domain: '—', qtype: '—', source: 'Redis', raw: k };
+    }
+    const domain = parts[1] || '—';
+    const qtype = String(parts[2] || '—').toUpperCase();
+    let source = '全局键';
+    if (parts[3] === 'ecs') {
+      source = 'ECS · ' + (parts.slice(4).join(':') || '—');
+    }
+    return { domain, qtype, source, raw: k };
+  }
+
   function renderCacheList(data) {
     const total = data.total ?? 0;
     const page = data.page ?? 1;
@@ -2018,12 +1564,16 @@
     emptyEl.classList.add('hidden');
     tableEl.classList.remove('hidden');
     for (const row of entries) {
+      const z = parseDnsCacheKey(row.key);
       const tr = document.createElement('tr');
       tr.innerHTML =
-        '<td class="cache-key">' + escHtml(row.key) + '</td>' +
+        '<td>' + escHtml(z.domain) + '</td>' +
+        '<td class="cache-num">' + escHtml(z.qtype) + '</td>' +
         '<td class="cache-num">' + escHtml(fmtCacheTTL(row.ttl_seconds)) + '</td>' +
+        '<td>' + escHtml(z.source) + '</td>' +
         '<td class="cache-summary">' + escHtml(row.summary || '—') + '</td>' +
-        '<td class="cache-num">' + escHtml(row.value_length != null ? String(row.value_length) : '—') + '</td>';
+        '<td class="cache-num">' + escHtml(row.value_length != null ? String(row.value_length) : '—') + '</td>' +
+        '<td class="cache-key">' + escHtml(z.raw) + '</td>';
       tbody.appendChild(tr);
     }
   }
@@ -2150,8 +1700,9 @@
   };
 
   document.getElementById('cache-flush').onclick = async () => {
-    const pat = document.getElementById('cache-pattern').value.trim();
-    const q = pat ? '?pattern=' + encodeURIComponent(pat) : '';
+    const pat = document.getElementById('cache-pattern').value.trim() || 'dns:*';
+    if (!(await openConfirm('确定清除缓存？将删除匹配模式「' + pat + '」的全部 Redis 键。'))) return;
+    const q = pat !== 'dns:*' ? '?pattern=' + encodeURIComponent(pat) : '';
     const r = await fetch('/api/v1/cache' + q, req({ method: 'DELETE', headers: headers(false) }));
     const j = await r.json().catch(() => ({}));
     toast(r.ok ? ('已删除 ' + (j.deleted ?? '?') + ' 个键') : await r.text(), r.ok);
@@ -2286,7 +1837,7 @@
     const msg = n > 0
       ? '确定清空全部查询日志？当前全集约 ' + fmtCount(n) + ' 条。此操作不可撤销。'
       : '确定清空查询日志？（若使用 Redis 列表，将删除该键；进程内模式则清空内存缓冲。）';
-    if (!window.confirm(msg)) return;
+    if (!(await openConfirm(msg))) return;
     const r = await fetch('/api/v1/logs', req({ method: 'DELETE', headers: headers(false) }));
     if (!r.ok) {
       toast(await r.text(), false);
@@ -2352,7 +1903,7 @@
   document.getElementById('dash-goto-logs').onclick = () => showPage('logs');
   document.getElementById('dash-goto-monitor').onclick = () => showPage('monitor');
   document.getElementById('dash-reset-stats').onclick = async () => {
-    if (!window.confirm('确定重置仪表盘全部计数？运行时间将重新计时，并删除 Redis 中的统计持久化键；异步日志丢弃计数也会清零。不影响查询日志与 DNS 缓存。')) return;
+    if (!(await openConfirm('确定重置仪表盘全部计数？运行时间将重新计时，并删除 Redis 中的统计持久化键；异步日志丢弃计数也会清零。不影响查询日志与 DNS 缓存。'))) return;
     const r = await fetch('/api/v1/stats/reset', req({ method: 'POST', headers: headers(false) }));
     if (!r.ok) {
       toast(await r.text(), false);
@@ -2362,11 +1913,21 @@
     await refreshDashStats();
   };
 
+  async function refreshRegionOnly() {
+    try {
+      const r = await fetch('/api/v1/meta', req({ headers: headers(false) }));
+      if (!r.ok) return;
+      updateRegionFromMeta(await r.json());
+    } catch (e) { /* ignore */ }
+  }
+
   async function refreshMeta() {
     const pre = document.getElementById('meta-json');
     try {
       const r = await fetch('/api/v1/meta', req({ headers: headers(false) }));
-      pre.textContent = JSON.stringify(await r.json(), null, 2);
+      const j = await r.json();
+      updateRegionFromMeta(j);
+      pre.textContent = JSON.stringify(j, null, 2);
     } catch (e) {
       pre.textContent = String(e);
     }
@@ -2456,6 +2017,7 @@
       document.getElementById('login-gate').classList.add('hidden');
       document.getElementById('login-gate').setAttribute('aria-hidden', 'true');
       document.getElementById('login-user').value = me.username || 'admin';
+      syncUserMenuLabel();
       startApp();
       return;
     }
