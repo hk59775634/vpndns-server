@@ -1,6 +1,6 @@
 [Unit]
 Description=VPN DNS CDN smart resolver (UDP/TCP/DoH + admin)
-Documentation=https://github.com/yourorg/vpndns
+Documentation=https://github.com/hk59775634/vpndns-server
 After=network-online.target
 Wants=network-online.target
 

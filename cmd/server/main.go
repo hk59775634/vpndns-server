@@ -43,7 +43,7 @@ var webStatic embed.FS
 func main() {
 	rand.Seed(time.Now().UnixNano())
 	var cfgPathFlag string
-	flag.StringVar(&cfgPathFlag, "config", "", "path to YAML config (overrides CONFIG env; default configs/config.yaml)")
+	flag.StringVar(&cfgPathFlag, "config", "", "path to YAML config (overrides CONFIG env; default configs/config.yaml; production often /etc/vpndns/config.yaml)")
 	flag.Parse()
 
 	cfgPath := cfgPathFlag

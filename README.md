@@ -2,7 +2,7 @@
 
 智能 DNS：国内/海外双上游、白名单、Redis 缓存、DoH、VIP 映射、GeoIP 分流与 Web 控制台。
 
-**源码仓库：** [github.com/hk59775634/vpndns-server](https://github.com/hk59775634/vpndns-server)
+**源码仓库：** [https://github.com/hk59775634/vpndns-server](https://github.com/hk59775634/vpndns-server)
 
 **预编译二进制：** [GitHub Releases](https://github.com/hk59775634/vpndns-server/releases)（多架构压缩包与 `SHA256SUMS.txt`）。维护者打包：`RELEASE_USE_DOCKER=1 ./scripts/release-build.sh v1.x.x`（需 Docker；本机 Go 1.22+ 也可直接执行该脚本）。
 
@@ -40,13 +40,23 @@ go build -o vpndns-server ./cmd/server
 # 或：export CONFIG=configs/config.yaml && ./vpndns-server
 ```
 
-配置文件路径：**`-config <path>`** 优先，其次环境变量 **`CONFIG`**，默认 `configs/config.yaml`。
+配置文件路径：**`-config <path>`** 优先，其次环境变量 **`CONFIG`**；在仓库目录下直接运行时默认 **`configs/config.yaml`**（相对当前工作目录）。
 
-依赖：**Redis**。仓库内请使用 **`configs/config.example.yaml`** 复制为 `configs/config.yaml`；**勿将含私钥与密钥的 `config.yaml` 提交到 Git**（已在 `.gitignore` 中忽略）。Docker Compose 可参考 `configs/docker-compose.config.yaml`。
+**测试与生产部署**推荐使用 **`/etc/vpndns/config.yaml`**（与 `deploy/vpndns-server.service` 中 `CONFIG` 一致），例如：
+
+```bash
+sudo mkdir -p /etc/vpndns
+sudo cp configs/config.example.yaml /etc/vpndns/config.yaml   # 或从现有文件复制
+sudo chmod 600 /etc/vpndns/config.yaml
+sudo vpndns-server -config /etc/vpndns/config.yaml
+# 或：export CONFIG=/etc/vpndns/config.yaml && vpndns-server
+```
+
+依赖：**Redis**。开发时可将 **`configs/config.example.yaml`** 复制为 **`configs/config.yaml`**；**勿将含私钥与密钥的 `config.yaml` 提交到 Git**（已在 `.gitignore` 中忽略）。Docker Compose 可参考 `configs/docker-compose.config.yaml`。详细步骤见 **`docs/DEPLOY.md`**。
 
 ## UDP/53 QPS 压测参考（非承诺）
 
-仓库提供 **`cmd/udpbench`**：对指定 `host:53` 发 **UDP** 查询，用于粗测单机吞吐（与域名是否命中白名单、缓存、上游、Redis、`rate_limit` 等均相关）。
+仓库提供 **`cmd/udpbench`**：对指定 `host:53` 发 **UDP** 查询，用于粗测单机吞吐（与域名是否命中白名单、缓存、上游、Redis、`rate_limit` 等均相关）。**若服务以 `/etc/vpndns/config.yaml` 启动**，请将 **`udpbench -addr`** 设为该配置里 **`listen.udp`**（或等效的 `host:port`），勿照搬下文示例端口。
 
 ```bash
 go build -o udpbench ./cmd/udpbench
@@ -79,7 +89,7 @@ go build -o dohbench ./cmd/dohbench
 ./dohbench -style rfc8484 -url http://127.0.0.1:8053/dns-query -domain example.com. -d 40s -qps 5000 -w 500 -timeout 20s
 ```
 
-**一次本机粗测（仅供参考）：** 使用仓库内 **`configs/bench-100k.yaml`**（环回、放宽 `rate_limit`、DoH `:18553` 明文），`example.com.` **A**、`dohbench` **flood**（`-qps 0`）、**200** workers、**15s**：
+**一次本机粗测（仅供参考）：** 使用仓库内 **`configs/bench-100k.yaml`** 启动服务（环回、放宽 `rate_limit`、DoH **`:18553`** 明文），`example.com.` **A**、`dohbench` **flood**（`-qps 0`）、**200** workers、**15s**。**若以 `/etc/vpndns/config.yaml` 跑服务**，表中数字仅作量级参考，**`-url` 必须与其中 `listen.doh` 一致**（常见为 `:8053`，与下表 `:18553` 不同）。
 
 | 样式 | 成功 QPS（约） | 平均成功延迟（约） |
 |------|----------------|---------------------|

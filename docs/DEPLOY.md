@@ -1,5 +1,7 @@
 # 部署指南
 
+源码仓库：**[https://github.com/hk59775634/vpndns-server](https://github.com/hk59775634/vpndns-server)**。生产与集成测试建议统一使用 **`/etc/vpndns/config.yaml`**（下文 §3、systemd 示例与此一致）。
+
 ## 1. 环境要求
 
 - Linux（推荐）或类 Unix
@@ -21,7 +23,8 @@ sudo install -m 0755 vpndns-server /usr/local/bin/
 
 ```bash
 sudo mkdir -p /etc/vpndns
-sudo cp configs/config.yaml /etc/vpndns/config.yaml
+sudo cp configs/config.example.yaml /etc/vpndns/config.yaml
+# 若你已在仓库内维护好 configs/config.yaml，也可改为复制该文件
 sudo chmod 600 /etc/vpndns/config.yaml
 ```
 
@@ -120,7 +123,7 @@ sudo systemctl daemon-reload
 官方多架构镜像（**linux/amd64、linux/arm64、linux/arm/v7**）：
 
 - **Docker Hub：** [hk59775634/vpndns-server](https://hub.docker.com/r/hk59775634/vpndns-server)
-- **源码 / Issue：** [github.com/hk59775634/vpndns-server](https://github.com/hk59775634/vpndns-server)
+- **源码 / Issue：** [https://github.com/hk59775634/vpndns-server](https://github.com/hk59775634/vpndns-server)
 
 **标签策略：** 每次正式发版同时推送 **`:vX.Y.Z`** 与 **`:latest`**（见 `scripts/docker-buildx-push.sh` 顶部说明）。**`:v*`** 标签长期保留，不在 Hub 上删除旧版本，便于回滚与审计；生产请在 Compose/K8s 中写死 `image: ...:v1.0.1` 等。
 
