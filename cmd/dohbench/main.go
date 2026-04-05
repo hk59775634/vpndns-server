@@ -1,15 +1,20 @@
-// dohbench: DoH POST 压测（RFC 8484 application/dns-message），模式与 cmd/udpbench 对齐。
+// dohbench: DoH 压测，模式与 cmd/udpbench 对齐。
+// -style rfc8484：Cloudflare 等通用的 RFC 8484 POST（application/dns-message）
+// -style google：Google 公共 DNS 兼容的 GET /resolve（application/dns-json）
 package main
 
 import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -20,7 +25,8 @@ import (
 )
 
 func main() {
-	urlStr := flag.String("url", "http://127.0.0.1:8053/dns-query", "DoH 完整 URL（含路径，如 .../dns-query）")
+	urlStr := flag.String("url", "http://127.0.0.1:8053/dns-query", "DoH URL：rfc8484 为完整 POST 地址（…/dns-query）；google 可为服务根或 …/resolve")
+	style := flag.String("style", "rfc8484", "rfc8484=POST dns-message（Cloudflare 标准）| google=GET /resolve JSON（Google 标准）")
 	domain := flag.String("domain", "example.com.", "查询域名")
 	duration := flag.Duration("d", 20*time.Second, "压测时长")
 	workers := flag.Int("w", 200, "并发 worker 数")
@@ -33,6 +39,11 @@ func main() {
 
 	if *workers < 1 {
 		*workers = 1
+	}
+	st := strings.ToLower(strings.TrimSpace(*style))
+	if st != "rfc8484" && st != "google" {
+		fmt.Fprintln(os.Stderr, "-style must be rfc8484 or google")
+		os.Exit(1)
 	}
 	qname := dns.Fqdn(strings.TrimSpace(*domain))
 	if qname == "." {
@@ -69,13 +80,42 @@ func main() {
 	start := time.Now()
 
 	doOne := func(ctx context.Context) bool {
-		body := bytes.NewReader(wire)
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, *urlStr, body)
-		if err != nil {
-			return false
+		var req *http.Request
+		var err error
+		if st == "rfc8484" {
+			body := bytes.NewReader(wire)
+			req, err = http.NewRequestWithContext(ctx, http.MethodPost, *urlStr, body)
+			if err != nil {
+				return false
+			}
+			req.Header.Set("Content-Type", "application/dns-message")
+			req.Header.Set("Accept", "application/dns-message")
+		} else {
+			u, perr := url.Parse(*urlStr)
+			if perr != nil {
+				return false
+			}
+			p := strings.TrimSuffix(u.Path, "/")
+			switch {
+			case strings.HasSuffix(p, "/resolve"):
+				u.Path = p
+			case strings.HasSuffix(p, "/dns-query"):
+				u.Path = strings.TrimSuffix(p, "/dns-query") + "/resolve"
+			case p == "":
+				u.Path = "/resolve"
+			default:
+				u.Path = p + "/resolve"
+			}
+			q := u.Query()
+			q.Set("name", strings.TrimSuffix(qname, "."))
+			q.Set("type", strconv.Itoa(int(msg.Question[0].Qtype)))
+			u.RawQuery = q.Encode()
+			req, err = http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+			if err != nil {
+				return false
+			}
+			req.Header.Set("Accept", "application/dns-json")
 		}
-		req.Header.Set("Content-Type", "application/dns-message")
-		req.Header.Set("Accept", "application/dns-message")
 		if t := strings.TrimSpace(*token); t != "" {
 			req.Header.Set("Authorization", "Bearer "+t)
 		}
@@ -85,9 +125,26 @@ func main() {
 		if err != nil {
 			return false
 		}
-		_, _ = io.Copy(io.Discard, resp.Body)
+		body, rerr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 		_ = resp.Body.Close()
+		if rerr != nil {
+			return false
+		}
 		if resp.StatusCode != http.StatusOK {
+			return false
+		}
+		if st == "rfc8484" {
+			atomic.AddInt64(&latSum, lat)
+			atomic.AddInt64(&latN, 1)
+			return true
+		}
+		var gj struct {
+			Status int `json:"Status"`
+		}
+		if json.Unmarshal(body, &gj) != nil {
+			return false
+		}
+		if gj.Status != 0 {
 			return false
 		}
 		atomic.AddInt64(&latSum, lat)
@@ -156,9 +213,9 @@ func main() {
 	}
 
 	if *qps > 0 {
-		fmt.Printf("url=%s qname=%s target_qps=%d workers=%d duration=%s\n", *urlStr, qname, *qps, *workers, *duration)
+		fmt.Printf("style=%s url=%s qname=%s target_qps=%d workers=%d duration=%s\n", st, *urlStr, qname, *qps, *workers, *duration)
 	} else {
-		fmt.Printf("url=%s qname=%s workers=%d duration=%s (flood)\n", *urlStr, qname, *workers, *duration)
+		fmt.Printf("style=%s url=%s qname=%s workers=%d duration=%s (flood)\n", st, *urlStr, qname, *workers, *duration)
 	}
 	fmt.Printf("elapsed=%.3fs sent=%d ok=%d fail=%d\n", elapsed, sent, ok, fail)
 	fmt.Printf("achieved_send_qps=%.0f achieved_ok_qps=%.0f\n", float64(sent)/elapsed, float64(ok)/elapsed)
@@ -166,6 +223,6 @@ func main() {
 		fmt.Printf("avg_ok_latency_us=%d\n", latSum/latN)
 	}
 	if fail > sent/10 {
-		fmt.Fprintf(os.Stderr, "\n提示: 失败率较高。检查 URL、DoH TLS（-k）、Bearer（-token）、rate_limit、上游与 Redis。\n")
+		fmt.Fprintf(os.Stderr, "\n提示: 失败率较高。检查 URL、-style、DoH TLS（-k）、Bearer（-token）、rate_limit、上游与 Redis。\n")
 	}
 }

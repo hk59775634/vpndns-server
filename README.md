@@ -19,6 +19,8 @@ docker pull hk59775634/vpndns-server:v1.0.1   # 推荐生产固定版本
 ## 功能摘要
 
 - 监听：UDP/TCP DNS、DoH（可选 TLS，支持**证书文件路径**或 **PEM 内联**）
+  - **Cloudflare 类通用 DoH**：`POST /dns-query`，`Content-Type` / `Accept: application/dns-message`（RFC 8484）
+  - **Google JSON DoH**：`GET /resolve?name=&type=`，`Accept: application/dns-json`（与 [Google 公共 DNS JSON](https://developers.google.com/speed/public-dns/docs/doh/json) 形态兼容）
 - 管理 UI + REST API（`listen.admin`）
 - VIP 映射：`mapper.api_url` 为空时，Redis 未命中后使用**本机公网出口 IP**（可配置探测 URL，默认 `https://api.ipify.org`）
 - GeoIP：中国 CIDR 列表；**IPv4 采用合并区间 + 二分查找**加速（大规模 CIDR 下显著优于线性扫描）
@@ -58,17 +60,33 @@ go build -o udpbench ./cmd/udpbench
 
 ## DoH 压测参考（非承诺）
 
-**`cmd/dohbench`**：对 DoH 端点发 **POST `application/dns-message`**，模式与 `udpbench` 相同（`-qps 0` 尽力打满；`-qps N` 为全局目标 QPS + 多 worker 并发）。
+**`cmd/dohbench`**：模式与 `udpbench` 相同（`-qps 0` 尽力打满；`-qps N` 为全局目标 QPS + 多 worker 并发）。用 **`-style`** 区分两种服务端点：
+
+| `-style` | 说明 | 典型 `-url` |
+|----------|------|-------------|
+| `rfc8484`（默认） | **POST** `application/dns-message`（Cloudflare / RFC 8484） | `http://127.0.0.1:8053/dns-query` |
+| `google` | **GET** `application/dns-json`（Google `/resolve`） | `http://127.0.0.1:8053/resolve` 或服务根 `http://127.0.0.1:8053/`（工具会自动拼 `/resolve`） |
 
 ```bash
 go build -o dohbench ./cmd/dohbench
-# 明文 DoH（本地常见 :8053）
-./dohbench -url http://127.0.0.1:8053/dns-query -domain example.com. -d 30s -w 200 -qps 0
-# HTTPS 自签证书
-./dohbench -url https://127.0.0.1:8053/dns-query -domain example.com. -d 20s -w 200 -qps 0 -k
+# RFC 8484（明文 DoH）
+./dohbench -style rfc8484 -url http://127.0.0.1:8053/dns-query -domain example.com. -d 30s -w 200 -qps 0
+# Google JSON
+./dohbench -style google -url http://127.0.0.1:8053/resolve -domain example.com. -d 30s -w 200 -qps 0
+# HTTPS 自签证书（两种 style 均可加 -k）
+./dohbench -style rfc8484 -url https://127.0.0.1:8053/dns-query -domain example.com. -d 20s -w 200 -qps 0 -k
 # 定目标 QPS；若启用 doh_auth，加 -token <bearer>
-./dohbench -url http://127.0.0.1:8053/dns-query -domain example.com. -d 40s -qps 5000 -w 500 -timeout 20s
+./dohbench -style rfc8484 -url http://127.0.0.1:8053/dns-query -domain example.com. -d 40s -qps 5000 -w 500 -timeout 20s
 ```
+
+**一次本机粗测（仅供参考）：** 使用仓库内 **`configs/bench-100k.yaml`**（环回、放宽 `rate_limit`、DoH `:18553` 明文），`example.com.` **A**、`dohbench` **flood**（`-qps 0`）、**200** workers、**15s**：
+
+| 样式 | 成功 QPS（约） | 平均成功延迟（约） |
+|------|----------------|---------------------|
+| `rfc8484` `POST /dns-query` | **~7.9k** | **~25ms** |
+| `google` `GET /resolve` | **~8.9k** | **~22ms** |
+
+与 UDP/53 压测相同，上述数字受 **上游、Redis、缓存命中、CPU** 等影响，**不是 SLA**；部署前请用你的配置复测。
 
 DoH 走 **TCP/TLS + HTTP**，通常同样硬件下单机 QPS **低于** UDP/53；具体与 HTTP/2、TLS、上游解析路径有关，需自行压测对比。
 

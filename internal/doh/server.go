@@ -21,7 +21,7 @@ import (
 	"github.com/vpndns/cdn/internal/stats"
 )
 
-// Server implements RFC 8484 DNS-over-HTTPS.
+// Server implements RFC 8484 DNS-over-HTTPS (POST /dns-query) and Google-style JSON (GET /resolve).
 type Server struct {
 	cfg     *config.Store
 	res     *resolver.Resolver

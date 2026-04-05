@@ -194,6 +194,7 @@ func main() {
 
 	dohMux := http.NewServeMux()
 	dohMux.Handle("/dns-query", dohS.Handler())
+	dohMux.Handle("/resolve", dohS.ResolveJSONHandler())
 	dohSrv := &http.Server{
 		Addr:              c.Listen.DoH,
 		Handler:           dohMux,

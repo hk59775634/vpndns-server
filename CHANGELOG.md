@@ -7,12 +7,13 @@
 ### 新增
 
 - `cmd/udpbench`：UDP/53 压测小工具（`-qps` 定目标速率或多 worker flood）。
-- `cmd/dohbench`：DoH POST 压测，与 `udpbench` 对齐（`-qps` / flood、`-k`、`-token`）。
+- DoH：**Google JSON** `GET /resolve?name=&type=`（`application/dns-json`），与 [Google 公共 DNS JSON](https://developers.google.com/speed/public-dns/docs/doh/json) 形态兼容；与既有 **RFC 8484** `POST /dns-query` 共用鉴权、限流与解析路径。
+- `cmd/dohbench`：支持 `-style rfc8484|google` 分别压测上述两种端点；`README` 含 `bench-100k.yaml` 下本机粗测 QPS 参考。
 
 ### 文档
 
 - `README.md`：增加 **UDP/53 QPS 压测参考**，说明 `cmd/udpbench` 用法与一次本机粗测结论（非性能承诺）。
-- `README.md`：增加 **DoH 压测参考**（`cmd/dohbench`）。
+- `README.md`：DoH 双标准说明与 **DoH 压测参考**（`cmd/dohbench`、两种 style 及粗测表）。
 
 ## [1.0.1] — 2026-04-04
 
