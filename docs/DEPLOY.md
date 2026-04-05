@@ -125,11 +125,11 @@ sudo systemctl daemon-reload
 - **Docker Hub：** [hk59775634/vpndns-server](https://hub.docker.com/r/hk59775634/vpndns-server)
 - **源码 / Issue：** [https://github.com/hk59775634/vpndns-server](https://github.com/hk59775634/vpndns-server)
 
-**标签策略：** 每次正式发版同时推送 **`:vX.Y.Z`** 与 **`:latest`**（见 `scripts/docker-buildx-push.sh` 顶部说明）。**`:v*`** 标签长期保留，不在 Hub 上删除旧版本，便于回滚与审计；生产请在 Compose/K8s 中写死 `image: ...:v1.0.1` 等。
+**标签策略：** 每次正式发版同时推送 **`:vX.Y.Z`** 与 **`:latest`**（见 `scripts/docker-buildx-push.sh` 顶部说明）。**`:v*`** 标签长期保留，不在 Hub 上删除旧版本，便于回滚与审计；生产请在 Compose/K8s 中写死 `image: ...:v1.0.2` 等。
 
 ```bash
 # 固定版本（推荐生产）
-docker pull hk59775634/vpndns-server:v1.0.1
+docker pull hk59775634/vpndns-server:v1.0.2
 
 # 最新构建（与当前主线发版一致）
 docker pull hk59775634/vpndns-server:latest
