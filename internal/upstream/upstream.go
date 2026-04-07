@@ -213,13 +213,14 @@ func (p *Pool) query(ctx context.Context, list []config.UpstreamSpec, req *model
 			setECS(msg, ecsIP, ecsBits)
 		}
 		var resp *dns.Msg
+		var reqURL string
 		var err error
 		func() {
 			p.mu.RLock()
 			g := p.guard
 			p.mu.RUnlock()
 			if g == nil {
-				resp, err = p.exchange(ctx, u, msg)
+				resp, reqURL, err = p.exchange(ctx, u, msg, ecsIP, ecsBits)
 				return
 			}
 			release, aerr := g.AcquireUpstream(ctx)
@@ -228,7 +229,7 @@ func (p *Pool) query(ctx context.Context, list []config.UpstreamSpec, req *model
 				return
 			}
 			defer release()
-			resp, err = p.exchange(ctx, u, msg)
+			resp, reqURL, err = p.exchange(ctx, u, msg, ecsIP, ecsBits)
 		}()
 		if err != nil {
 			lastErr = err
@@ -239,8 +240,10 @@ func (p *Pool) query(ctx context.Context, list []config.UpstreamSpec, req *model
 			continue
 		}
 		return &models.DNSResponse{
-			Msg:    resp,
-			MinTTL: models.MinAnswerTTL(resp, 60),
+			Msg:                resp,
+			MinTTL:             models.MinAnswerTTL(resp, 60),
+			UpstreamEndpoint:   formatUpstreamSpec(u),
+			UpstreamRequestURL: reqURL,
 		}, nil
 	}
 	if lastErr == nil {
@@ -249,14 +252,54 @@ func (p *Pool) query(ctx context.Context, list []config.UpstreamSpec, req *model
 	return nil, lastErr
 }
 
-func (p *Pool) exchange(ctx context.Context, u *config.UpstreamSpec, msg *dns.Msg) (*dns.Msg, error) {
+// formatUpstreamSpec returns a short label for admin logs (DoH URL vs UDP address).
+func formatUpstreamSpec(u *config.UpstreamSpec) string {
+	if u == nil {
+		return ""
+	}
+	name := strings.TrimSpace(u.Name)
+	if strings.TrimSpace(u.URL) != "" {
+		s := strings.TrimSpace(u.URL)
+		if upstreamDoHIsJSON(u) {
+			s = "Google JSON GET " + s
+		} else {
+			s = "DoH RFC8484 " + s
+		}
+		if name != "" {
+			return s + " (" + name + ")"
+		}
+		return s
+	}
+	if strings.TrimSpace(u.Address) != "" {
+		s := "UDP " + strings.TrimSpace(u.Address)
+		if name != "" {
+			return s + " (" + name + ")"
+		}
+		return s
+	}
+	if name != "" {
+		return name
+	}
+	return ""
+}
+
+func (p *Pool) exchange(ctx context.Context, u *config.UpstreamSpec, msg *dns.Msg, ecsIP net.IP, ecsBits int) (*dns.Msg, string, error) {
 	switch {
 	case strings.TrimSpace(u.URL) != "":
-		return p.exchangeDoH(ctx, u.URL, msg)
+		useJSON, err := pickDoHExchangeJSON(u)
+		if err != nil {
+			return nil, "", err
+		}
+		if useJSON {
+			return p.exchangeGoogleJSONResolve(ctx, u.URL, msg, ecsIP, ecsBits)
+		}
+		m, err := p.exchangeDoH(ctx, u.URL, msg)
+		return m, "", err
 	case strings.TrimSpace(u.Address) != "":
-		return p.exchangeUDP(ctx, u.Address, msg)
+		m, err := p.exchangeUDP(ctx, u.Address, msg)
+		return m, "", err
 	default:
-		return nil, fmt.Errorf("upstream %q has no url or address", u.Name)
+		return nil, "", fmt.Errorf("upstream %q has no url or address", u.Name)
 	}
 }
 
@@ -318,9 +361,13 @@ func (p *Pool) exchangeDoH(ctx context.Context, rawURL string, msg *dns.Msg) (*d
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("doh status %d", resp.StatusCode)
 	}
+	raw := bb.Bytes()
+	if len(raw) > 0 && raw[0] == '<' {
+		return nil, fmt.Errorf("doh: response is HTML, not DNS wire (wrong URL path? RFC 8484 DoH uses a path like /dns-query; for Google Public DNS use https://dns.google/dns-query, not https://dns.google/query)")
+	}
 	ans := new(dns.Msg)
-	if err := ans.Unpack(bb.Bytes()); err != nil {
-		return nil, err
+	if err := ans.Unpack(raw); err != nil {
+		return nil, fmt.Errorf("doh: unpack DNS message: %w", err)
 	}
 	return ans, nil
 }

@@ -77,6 +77,16 @@ func (m *Mapper) Reload(apiURL string, ttlSeconds int, publicProbeURL string, ma
 	}
 }
 
+// PublicUnicastIP returns ip if it is a globally routable unicast address, otherwise nil.
+// Used when choosing EDNS Client Subnet for upstreams: private / VPN addresses must not block
+// mapper.default_cn_ecs / default_out_ecs fallbacks.
+func PublicUnicastIP(ip net.IP) net.IP {
+	if isPublicUnicastIP(ip) {
+		return ip
+	}
+	return nil
+}
+
 // isPublicUnicastIP reports whether ip is a globally routable unicast address (not loopback, ULA, RFC1918, link-local, CGNAT 100.64/10, etc.).
 func isPublicUnicastIP(ip net.IP) bool {
 	if ip == nil {

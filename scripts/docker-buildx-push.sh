@@ -9,7 +9,7 @@
 # 平台默认：linux/amd64, linux/arm64, linux/arm/v7（与 Release 二进制一致）
 #
 # 用法：
-#   VERSION=v1.0.3 ./scripts/docker-buildx-push.sh
+#   VERSION=v1.0.4 ./scripts/docker-buildx-push.sh
 #   USE_GIT_TAG=1 ./scripts/docker-buildx-push.sh    # VERSION 取当前仓库最新 git 标签（如 v1.0.1）
 #   ./scripts/docker-buildx-push.sh                  # 仅 :latest（会打印警告）
 #

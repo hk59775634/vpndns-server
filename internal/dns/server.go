@@ -121,6 +121,16 @@ func (s *Server) handle(w dns.ResponseWriter, r *dns.Msg) {
 	}
 	name := strings.ToLower(r.Question[0].Name)
 	qt := r.Question[0].Qtype
+	nw := w.RemoteAddr().Network()
+	transport := "udp"
+	if strings.HasPrefix(nw, "tcp") {
+		transport = "tcp"
+	}
+	req := &models.DNSRequest{
+		Msg:       r,
+		ClientVIP: clientIP,
+		Transport: transport,
+	}
 	if s.blocked(name) {
 		cfg := s.cfg.Get()
 		action := "nxdomain"
@@ -130,15 +140,11 @@ func (s *Server) handle(w dns.ResponseWriter, r *dns.Msg) {
 		realIP := net.ParseIP(clientIP)
 		resp := resolver.PolicyBlockResponse(r, action, realIP, "")
 		_ = w.WriteMsg(resp.Msg)
-		s.emitLog(querylog.FromFailure(name, clientIP, qt, 0, int(resp.Msg.Rcode), querylog.AnswerSummary(resp.Msg), "黑名单"))
+		s.emitLog(querylog.FromFailure(name, clientIP, qt, 0, int(resp.Msg.Rcode), querylog.AnswerSummary(resp.Msg), "黑名单", resolver.TransportTracePreflight(req)))
 		return
 	}
 
 	start := time.Now()
-	req := &models.DNSRequest{
-		Msg:       r,
-		ClientVIP: clientIP,
-	}
 	rctx, cancel := s.resolveCtx()
 	defer cancel()
 	resp, err := s.res.Resolve(rctx, req)
@@ -159,7 +165,7 @@ func (s *Server) handle(w dns.ResponseWriter, r *dns.Msg) {
 				m.Rcode = dns.RcodeServerFailure
 			}
 			_ = w.WriteMsg(m)
-			s.emitLog(querylog.FromFailure(name, clientIP, qt, lat, rc, "OVERLOAD", "过载"))
+			s.emitLog(querylog.FromFailure(name, clientIP, qt, lat, rc, "OVERLOAD", "过载", resolver.FailureTraceForLog(req, err)))
 			return
 		}
 		log.Printf("resolve: q=%s err=%v", name, err)
@@ -167,7 +173,7 @@ func (s *Server) handle(w dns.ResponseWriter, r *dns.Msg) {
 		m.SetReply(r)
 		m.Rcode = dns.RcodeServerFailure
 		_ = w.WriteMsg(m)
-		s.emitLog(querylog.FromFailure(name, clientIP, qt, lat, dns.RcodeServerFailure, "SERVFAIL", "错误"))
+		s.emitLog(querylog.FromFailure(name, clientIP, qt, lat, dns.RcodeServerFailure, "SERVFAIL", "错误", resolver.FailureTraceForLog(req, err)))
 		return
 	}
 	if resp == nil || resp.Msg == nil {
@@ -175,7 +181,7 @@ func (s *Server) handle(w dns.ResponseWriter, r *dns.Msg) {
 		m.SetReply(r)
 		m.Rcode = dns.RcodeServerFailure
 		_ = w.WriteMsg(m)
-		s.emitLog(querylog.FromFailure(name, clientIP, qt, lat, dns.RcodeServerFailure, "SERVFAIL", "错误"))
+		s.emitLog(querylog.FromFailure(name, clientIP, qt, lat, dns.RcodeServerFailure, "SERVFAIL", "错误", resolver.FailureTraceForLog(req, nil)))
 		return
 	}
 	resp.Msg.SetReply(r)

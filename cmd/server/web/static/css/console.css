@@ -241,6 +241,8 @@
     table.upstream input { width: 100%; min-width: 0; }
     table.upstream .w-name { max-width: 120px; }
     table.upstream .w-url { min-width: 200px; }
+    table.upstream .w-doh { min-width: 160px; }
+    table.upstream .w-doh select { width: 100%; }
     table.upstream .w-addr { min-width: 140px; }
     table.upstream .w-w { width: 72px; }
     .btn {
@@ -538,6 +540,32 @@
     }
     table.log-table tbody tr:hover td { background: rgba(45, 147, 97, 0.06); }
     .log-col-time { white-space: nowrap; color: var(--text-muted); width: 1%; }
+    .log-col-detail { width: 1%; white-space: nowrap; vertical-align: middle; }
+    .log-detail-btn { font-size: 0.72rem; padding: 0.2rem 0.5rem; }
+    .trace-h4 {
+      font-size: 0.85rem;
+      margin: 1rem 0 0.45rem;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .trace-h4:first-child { margin-top: 0; }
+    .trace-steps { margin: 0 0 0.85rem 1.15rem; padding: 0; line-height: 1.55; font-family: inherit; }
+    .trace-steps li { margin: 0.3rem 0; }
+    .trace-dl { margin: 0; font-size: 0.78rem; }
+    .trace-dl dt { color: var(--text-muted); font-weight: 600; margin-top: 0.45rem; }
+    .trace-dl dt:first-child { margin-top: 0; }
+    .trace-dl dd { margin: 0.12rem 0 0 0; white-space: pre-wrap; word-break: break-word; line-height: 1.45; }
+    .trace-pre {
+      background: #f0f3f6;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.65rem;
+      max-height: min(40vh, 280px);
+      overflow: auto;
+      font-size: 0.72rem;
+      margin: 0.35rem 0 0;
+      line-height: 1.35;
+    }
     .log-col-req .req-domain { font-weight: 600; color: var(--text); font-family: inherit; word-break: break-all; }
     .log-col-req .req-type {
       display: inline-block;

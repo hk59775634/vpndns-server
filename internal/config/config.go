@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,9 +56,9 @@ type Config struct {
 		// HTTPMaxIdleConns / PerHost：外呼 mapper API 的 http.Transport 空闲连接上限（0=默认 128 / 32）。
 		HTTPMaxIdleConns        int `yaml:"http_max_idle_conns" json:"http_max_idle_conns"`
 		HTTPMaxIdleConnsPerHost int `yaml:"http_max_idle_conns_per_host" json:"http_max_idle_conns_per_host"`
-		// DefaultCNECS is used as EDNS Client Subnet source when asking cn_dns and VIP→IP mapping yields no usable IP (after mapper + client VIP parse).
+		// DefaultCNECS: when set, cn_dns and ECS-scoped cache use this address (IPv4 /24, IPv6 /48), ignoring mapped public IP and client EDNS subnet. If default_out_ecs is empty, out_dns falls back to this when client sends no EDNS subnet.
 		DefaultCNECS string `yaml:"default_cn_ecs" json:"default_cn_ecs"`
-		// DefaultOUTECS is used as ECS when asking out_dns (after client EDNS subnet and mapped real IP, if any).
+		// DefaultOUTECS: when set, out_dns uses this ECS (IPv4 /24, IPv6 /48) after client EDNS subnet, ignoring VIP 映射公网 IP. If empty, falls back to default_cn_ecs when that is set; else mapped public IP.
 		DefaultOUTECS string `yaml:"default_out_ecs" json:"default_out_ecs"`
 	} `yaml:"mapper" json:"mapper"`
 
@@ -145,10 +146,13 @@ type Config struct {
 
 // UpstreamSpec describes one DNS upstream (DoH URL or host:port for UDP).
 type UpstreamSpec struct {
-	Name    string `yaml:"name" json:"name"`
-	URL     string `yaml:"url" json:"url"`         // https://.../dns-query
+	Name string `yaml:"name" json:"name"`
+	// URL: HTTPS upstream only; combined with DoHMode.
+	URL     string `yaml:"url" json:"url"`
 	Address string `yaml:"address" json:"address"` // 223.5.5.5:53
 	Weight  int    `yaml:"weight" json:"weight"`
+	// DoHMode: auto | rfc8484 | json_get — only when url is set. auto: path ends with /resolve → JSON GET, else RFC 8484 POST.
+	DoHMode string `yaml:"doh_mode" json:"doh_mode"`
 }
 
 // Defaults fills zero values.
@@ -475,6 +479,42 @@ func Validate(c *Config) error {
 	}
 	if c.Mapper.HTTPMaxIdleConnsPerHost < 1 {
 		return errors.New("mapper.http_max_idle_conns_per_host must be >= 1")
+	}
+	if err := validateUpstreamDNS(c.CNDNS, "cn_dns"); err != nil {
+		return err
+	}
+	if err := validateUpstreamDNS(c.OUTDNS, "out_dns"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// upstreamURLPathLooksLikeJSONResolve matches upstream.isGoogleJSONResolveURL (HTTPS path …/resolve).
+func upstreamURLPathLooksLikeJSONResolve(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme != "https" {
+		return false
+	}
+	path := strings.TrimSuffix(strings.TrimSpace(u.Path), "/")
+	return strings.HasSuffix(path, "/resolve")
+}
+
+func validateUpstreamDNS(list []UpstreamSpec, label string) error {
+	for _, u := range list {
+		if strings.TrimSpace(u.URL) == "" {
+			continue
+		}
+		mode := strings.ToLower(strings.TrimSpace(u.DoHMode))
+		switch mode {
+		case "json", "json_get", "google_json":
+			if !upstreamURLPathLooksLikeJSONResolve(u.URL) {
+				name := strings.TrimSpace(u.Name)
+				if name == "" {
+					name = "(unnamed)"
+				}
+				return fmt.Errorf("%s upstream %q: doh_mode json_get requires URL path ending with /resolve (e.g. https://dns.google/resolve)", label, name)
+			}
+		}
 	}
 	return nil
 }

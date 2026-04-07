@@ -20,6 +20,11 @@ redis:
     pool_size: 256
     min_idle_conns: 32
     pool_fifo: true
+# 上游 url（HTTPS）与 doh_mode：
+#   - doh_mode: auto（默认）— URL 路径以 /resolve 结尾则用 JSON GET，否则 RFC 8484 POST
+#   - doh_mode: rfc8484 — 始终 RFC 8484（POST application/dns-message），例如 https://dns.google/dns-query
+#   - doh_mode: json_get — 始终 JSON GET，URL 须为 …/resolve（如 https://dns.google/resolve）
+# 不要用 https://dns.google/query（那是网页，不是 API）。
 cn_dns:
     - name: cn-udp
       url: ""
@@ -30,6 +35,17 @@ out_dns:
       url: ""
       address: 8.8.8.8:53
       weight: 1
+    # HTTPS 上游示例（任选其一）：
+    # - name: out-doh-rfc8484
+    #   url: https://dns.google/dns-query
+    #   doh_mode: rfc8484
+    #   address: ""
+    #   weight: 1
+    # - name: out-doh-json
+    #   url: https://dns.google/resolve
+    #   doh_mode: json_get
+    #   address: ""
+    #   weight: 1
 mapper:
     api_url: ""
     ttl_seconds: 300

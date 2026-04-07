@@ -54,7 +54,7 @@ func (r *Resolver) Resolve(ctx context.Context, req *models.DNSRequest) (*models
 		return nil, fmt.Errorf("bad request")
 	}
 	if cfg.Resolver.DisableIPv6 && req.QuestionType() == dns.TypeAAAA {
-		return ipv6DisabledAAAAResponse(req.Msg), nil
+		return ipv6DisabledAAAAResponse(req), nil
 	}
 	resp, err := r.resolveCore(ctx, req, cfg)
 	if err != nil || resp == nil || resp.Msg == nil || !cfg.Resolver.DisableIPv6 {
@@ -67,13 +67,22 @@ func (r *Resolver) Resolve(ctx context.Context, req *models.DNSRequest) (*models
 	return resp, err
 }
 
-func ipv6DisabledAAAAResponse(req *dns.Msg) *models.DNSResponse {
+func ipv6DisabledAAAAResponse(req *models.DNSRequest) *models.DNSResponse {
 	m := new(dns.Msg)
-	m.SetReply(req)
+	m.SetReply(req.Msg)
 	m.Rcode = dns.RcodeSuccess
 	m.Authoritative = false
 	m.Answer = nil
-	return &models.DNSResponse{Msg: m, MinTTL: 60, Log: models.ResolveLog{}}
+	qline := questionSummaryLine(req)
+	return &models.DNSResponse{
+		Msg: m, MinTTL: 60,
+		Log: models.ResolveLog{
+			Trace: &models.ResolveTrace{
+				Question: qline,
+				Steps:    []string{"已配置 disable_ipv6，AAAA 直接返回无数据（未访问上游）"},
+			},
+		},
+	}
 }
 
 func stripAAAARecords(m *dns.Msg) *dns.Msg {
@@ -116,30 +125,46 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 	if err != nil {
 		realIP = net.ParseIP(req.ClientVIP)
 	}
+	// Upstream ECS and ECS-scoped cache use public unicast only; mapped or raw VPN/private
+	// VIPs must fall through to default_cn_ecs (see mapper docs).
+	ecsSourceIP := mapper.PublicUnicastIP(realIP)
 	clientECS := req.ClientECS
 	if clientECS == "" {
 		clientECS = ecs.EDNS0Subnet(req.Msg)
 	}
 	cnECSDefault := parseIP(cfg.Mapper.DefaultCNECS)
-	subnetIP := realIP
-	if subnetIP == nil {
+	// ECS 缓存维度：若配置了 default_cn_ecs，始终用该地址做子网键（与发往国内上游的 ECS 一致）。
+	var subnetIP net.IP
+	if cnECSDefault != nil {
 		subnetIP = cnECSDefault
+	} else {
+		subnetIP = ecsSourceIP
 	}
-	subnetKey := ecs.FromClientOrIP(clientECS, subnetIP)
+	effectiveSubnetECS := clientECS
+	if cnECSDefault != nil {
+		effectiveSubnetECS = ""
+	}
+	subnetKey := ecs.FromClientOrIP(effectiveSubnetECS, subnetIP)
 
-	ecsIP, ecsBits := ecsNetForQuery(realIP, clientECS, cnECSDefault)
+	ecsIP, ecsBits := cnUpstreamECS(ecsSourceIP, clientECS, cnECSDefault)
+	tr := buildTracePrelude(req, qname, qtype, req.ClientVIP, realIP, ecsSourceIP, clientECS, subnetKey, ecsIP, ecsBits, cnECSDefault)
 
 	// 6. ECS-scoped cache
 	ecsCacheKey := cache.ECSKey(qname, qtype, subnetKey)
 	if resp, ok := r.l1HitECS(ecsCacheKey, req, realIP, subnetKey); ok {
+		tr.FromCache = "l1_ecs"
+		tr.Steps = append(tr.Steps, "命中进程内 L1 缓存（ECS 键），未访问上游")
+		resp.Log.Trace = tr
 		return resp, nil
 	}
 	if resp, ok := r.cache.Get(ctx, ecsCacheKey); ok && resp != nil && resp.Msg != nil {
+		tr.FromCache = "redis_ecs"
+		tr.Steps = append(tr.Steps, "命中 Redis 缓存（ECS 键），未访问上游")
 		out := resp.Msg.Copy()
 		out.SetReply(req.Msg)
 		return &models.DNSResponse{
 			Msg: out, MinTTL: resp.MinTTL,
-			Log: models.ResolveLog{Cached: true, RealIP: ipString(realIP), ClientSubnet: subnetKey},
+			Log: models.ResolveLog{Cached: true, RealIP: ipString(realIP), ClientSubnet: subnetKey, Trace: tr},
 		}, nil
 	}
 
@@ -147,47 +172,57 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 	if qtype != dns.TypeA && qtype != dns.TypeAAAA {
 		cnResp, err := r.queryCNCoalesced(ctx, cfg, req, ecsIP, ecsBits, ecsCacheKey)
 		if err != nil {
-			return nil, err
+			return nil, wrapResolveErr(tr, err)
 		}
+		annotateCNTrace(tr, cnResp)
+		tr.IPClassification = "非 A/AAAA"
+		tr.Steps = append(tr.Steps, "记录类型非 A/AAAA，不做境内外 IP 分类，仅使用国内上游结果")
 		ttl := effectiveTTL(cnResp, cfg.Resolver.MaxCacheTTLSeconds)
 		r.setBothCaches(ctx, ecsCacheKey, cnResp, ttl)
 		out := cnResp.Msg.Copy()
 		out.SetReply(req.Msg)
 		return &models.DNSResponse{
 			Msg: out, MinTTL: uint32(ttl),
-			Log: models.ResolveLog{CNOnly: true, RealIP: ipString(realIP), ClientSubnet: subnetKey},
+			Log: models.ResolveLog{CNOnly: true, RealIP: ipString(realIP), ClientSubnet: subnetKey, Trace: tr},
 		}, nil
 	}
 
 	// 7–9 CN path with IP classification
 	cnResp, err := r.queryCNCoalesced(ctx, cfg, req, ecsIP, ecsBits, ecsCacheKey)
 	if err != nil {
-		return nil, err
+		return nil, wrapResolveErr(tr, err)
 	}
+	annotateCNTrace(tr, cnResp)
 	ips := models.ExtractIPs(cnResp.Msg)
 	if len(ips) == 0 {
+		tr.IPClassification = "无 A/AAAA 地址"
+		tr.Steps = append(tr.Steps, "国内 IP 分类：结果中无 A/AAAA 地址")
 		ttl := effectiveTTL(cnResp, cfg.Resolver.MaxCacheTTLSeconds)
 		r.setBothCaches(ctx, ecsCacheKey, cnResp, ttl)
 		out := cnResp.Msg.Copy()
 		out.SetReply(req.Msg)
 		return &models.DNSResponse{
 			Msg: out, MinTTL: uint32(ttl),
-			Log: models.ResolveLog{CNOnly: true, RealIP: ipString(realIP), ClientSubnet: subnetKey},
+			Log: models.ResolveLog{CNOnly: true, RealIP: ipString(realIP), ClientSubnet: subnetKey, Trace: tr},
 		}, nil
 	}
 
 	allCN, cnIPs, _ := r.cn.ClassifyIPs(ips)
 	if allCN {
+		tr.IPClassification = "全部为国内 IP"
+		tr.Steps = append(tr.Steps, "国内 IP 分类：结果均为国内地址，仅使用国内上游结果")
 		ttl := effectiveTTL(cnResp, cfg.Resolver.MaxCacheTTLSeconds)
 		r.setBothCaches(ctx, ecsCacheKey, cnResp, ttl)
 		out := cnResp.Msg.Copy()
 		out.SetReply(req.Msg)
 		return &models.DNSResponse{
 			Msg: out, MinTTL: uint32(ttl),
-			Log: models.ResolveLog{CNOnly: true, RealIP: ipString(realIP), ClientSubnet: subnetKey},
+			Log: models.ResolveLog{CNOnly: true, RealIP: ipString(realIP), ClientSubnet: subnetKey, Trace: tr},
 		}, nil
 	}
 	if len(cnIPs) > 0 {
+		tr.IPClassification = "混合（含国内与海外），已过滤为仅国内"
+		tr.Steps = append(tr.Steps, "国内 IP 分类：同时含国内与海外地址，已过滤为仅保留国内 IP")
 		filtered := filterAnswersByIPs(cnResp.Msg, cnIPs)
 		fr := &models.DNSResponse{Msg: filtered, MinTTL: models.MinAnswerTTL(filtered, 60)}
 		ttl := effectiveTTL(fr, cfg.Resolver.MaxCacheTTLSeconds)
@@ -196,41 +231,50 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 		out.SetReply(req.Msg)
 		return &models.DNSResponse{
 			Msg: out, MinTTL: uint32(ttl),
-			Log: models.ResolveLog{CNOnly: true, RealIP: ipString(realIP), ClientSubnet: subnetKey},
+			Log: models.ResolveLog{CNOnly: true, RealIP: ipString(realIP), ClientSubnet: subnetKey, Trace: tr},
 		}, nil
 	}
 
+	tr.IPClassification = "无国内 IP"
+	tr.Steps = append(tr.Steps, "国内 IP 分类：解析结果中无国内地址，需判断白名单后是否查询海外上游")
+
 	// 10 whitelist (OUT only)
 	if !r.wl.Allowed(qname) {
-		return blocked(req.Msg, cfg.Resolver.NonWhitelistAction, realIP, subnetKey), nil
+		return blocked(req.Msg, cfg.Resolver.NonWhitelistAction, realIP, subnetKey, tr), nil
 	}
 
 	gkey := cache.GlobalKey(qname, qtype)
 	if resp, ok := r.l1HitGlobal(gkey, req, realIP, subnetKey); ok {
+		tr.FromCache = "l1_global"
+		tr.Steps = append(tr.Steps, "命中进程内 L1 缓存（全局键），未访问上游")
+		resp.Log.Trace = tr
 		return resp, nil
 	}
 	if resp, ok := r.cache.Get(ctx, gkey); ok && resp != nil && resp.Msg != nil {
+		tr.FromCache = "redis_global"
+		tr.Steps = append(tr.Steps, "命中 Redis 缓存（全局键），未访问上游")
 		out := resp.Msg.Copy()
 		out.SetReply(req.Msg)
 		return &models.DNSResponse{
 			Msg: out, MinTTL: resp.MinTTL,
-			Log: models.ResolveLog{Cached: true, RealIP: ipString(realIP), ClientSubnet: subnetKey},
+			Log: models.ResolveLog{Cached: true, RealIP: ipString(realIP), ClientSubnet: subnetKey, Trace: tr},
 		}, nil
 	}
 
 	outECSDefault := parseIP(cfg.Mapper.DefaultOUTECS)
-	outEcsIP, outEcsBits := ecsNetForQuery(realIP, clientECS, outECSDefault)
+	outEcsIP, outEcsBits := outUpstreamECS(ecsSourceIP, clientECS, outECSDefault, cnECSDefault)
 	outResp, err := r.queryOUTCoalesced(ctx, cfg, req, outEcsIP, outEcsBits, gkey)
 	if err != nil {
-		return nil, err
+		return nil, wrapResolveErr(tr, err)
 	}
+	annotateOUTTrace(tr, outResp, outEcsIP, outEcsBits)
 	ttl := effectiveTTL(outResp, cfg.Resolver.MaxCacheTTLSeconds)
 	r.setBothCaches(ctx, gkey, outResp, ttl)
 	out := outResp.Msg.Copy()
 	out.SetReply(req.Msg)
 	return &models.DNSResponse{
 		Msg: out, MinTTL: uint32(ttl),
-		Log: models.ResolveLog{WentOUT: true, RealIP: ipString(realIP), ClientSubnet: subnetKey},
+		Log: models.ResolveLog{WentOUT: true, RealIP: ipString(realIP), ClientSubnet: subnetKey, Trace: tr},
 	}, nil
 }
 
@@ -282,6 +326,30 @@ func parseIP(s string) net.IP {
 		return nil
 	}
 	return net.ParseIP(s)
+}
+
+// cnUpstreamECS selects ECS sent to cn_dns. When default_cn_ecs is set, the configured
+// address is always used (IPv4 /24, IPv6 /48), ignoring VIP 映射公网 IP 与客户端 EDNS 子网。
+func cnUpstreamECS(ecsSourceIP net.IP, clientECS string, cnDefault net.IP) (ip net.IP, bits int) {
+	if cnDefault != nil {
+		if ip4 := cnDefault.To4(); ip4 != nil {
+			return ip4, 24
+		}
+		return cnDefault.To16(), 48
+	}
+	return ecsNetForQuery(ecsSourceIP, clientECS, nil)
+}
+
+// outUpstreamECS selects ECS for out_dns: default_out_ecs or default_cn_ecs 作为固定源时
+// 不采用 VIP 映射公网 IP（仍优先客户端 EDNS 子网）；否则按映射公网 IP。
+func outUpstreamECS(ecsSourceIP net.IP, clientECS string, outDefault, cnDefault net.IP) (ip net.IP, bits int) {
+	if outDefault != nil {
+		return ecsNetForQuery(nil, clientECS, outDefault)
+	}
+	if cnDefault != nil {
+		return ecsNetForQuery(nil, clientECS, cnDefault)
+	}
+	return ecsNetForQuery(ecsSourceIP, clientECS, nil)
 }
 
 // ecsNetForQuery builds EDNS0 subnet for upstreams: client ECS if present, else mapped real IP, else fallback (e.g. configured default public IP).
@@ -352,10 +420,10 @@ func ipString(ip net.IP) string {
 
 // PolicyBlockResponse returns the same DNS answer shape as non-whitelist blocking (NXDOMAIN or localhost A/AAAA per action).
 func PolicyBlockResponse(req *dns.Msg, action string, realIP net.IP, subnetKey string) *models.DNSResponse {
-	return blocked(req, action, realIP, subnetKey)
+	return blocked(req, action, realIP, subnetKey, nil)
 }
 
-func blocked(req *dns.Msg, action string, realIP net.IP, subnetKey string) *models.DNSResponse {
+func blocked(req *dns.Msg, action string, realIP net.IP, subnetKey string, tr *models.ResolveTrace) *models.DNSResponse {
 	m := new(dns.Msg)
 	m.SetReply(req)
 	m.Authoritative = true
@@ -384,9 +452,13 @@ func blocked(req *dns.Msg, action string, realIP net.IP, subnetKey string) *mode
 	default:
 		m.Rcode = dns.RcodeNameError
 	}
+	if tr != nil {
+		tr.BlockedReason = "非白名单"
+		tr.Steps = append(tr.Steps, "域名未在白名单内，不查询海外上游，按策略返回（NXDOMAIN 或 localhost）")
+	}
 	return &models.DNSResponse{
 		Msg: m, MinTTL: 60,
-		Log: models.ResolveLog{BlockedWL: true, RealIP: ipString(realIP), ClientSubnet: subnetKey},
+		Log: models.ResolveLog{BlockedWL: true, RealIP: ipString(realIP), ClientSubnet: subnetKey, Trace: tr},
 	}
 }
 
@@ -490,4 +562,5 @@ type LogRecord struct {
 	LatencyMS     int64     `json:"latency_ms"`
 	Rcode         int       `json:"rcode"`
 	AnswerSummary string    `json:"answer_summary"`
+	Trace         *models.ResolveTrace `json:"trace,omitempty"`
 }

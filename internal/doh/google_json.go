@@ -166,18 +166,24 @@ func (s *Server) ResolveJSONHandler() http.Handler {
 
 		wireName := msg.Question[0].Name
 		qt := msg.Question[0].Qtype
+		dnsReq := &models.DNSRequest{
+			Msg:        msg,
+			ClientVIP:  vip,
+			Transport:  "doh-json",
+			DoHFullURL: HTTPRequestFullURL(r),
+		}
 		if vpndnsdns.MatchedInDomainList(wireName, cfg.Security.Blacklist) {
 			realIP := net.ParseIP(vip)
 			resp := resolver.PolicyBlockResponse(msg, cfg.Resolver.NonWhitelistAction, realIP, "")
 			w.Header().Set("Content-Type", "application/dns-json")
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(dnsMsgToGoogleJSON(resp.Msg))
-			s.emit(querylog.FromFailure(wireName, vip, qt, 0, int(resp.Msg.Rcode), querylog.AnswerSummary(resp.Msg), "黑名单"))
+			s.emit(querylog.FromFailure(wireName, vip, qt, 0, int(resp.Msg.Rcode), querylog.AnswerSummary(resp.Msg), "黑名单", resolver.TransportTracePreflight(dnsReq)))
 			return
 		}
 
 		start := time.Now()
-		req := &models.DNSRequest{Msg: msg, ClientVIP: vip}
+		req := dnsReq
 		qms := cfg.Resolver.QueryTimeoutMS
 		if qms <= 0 {
 			qms = 3000
@@ -192,17 +198,17 @@ func (s *Server) ResolveJSONHandler() http.Handler {
 					s.st.RecordOverload()
 				}
 				http.Error(w, "overload", http.StatusServiceUnavailable)
-				s.emit(querylog.FromFailure(wireName, vip, qt, lat, dns.RcodeServerFailure, "OVERLOAD", "过载"))
+				s.emit(querylog.FromFailure(wireName, vip, qt, lat, dns.RcodeServerFailure, "OVERLOAD", "过载", resolver.FailureTraceForLog(req, err)))
 				return
 			}
 			log.Printf("doh json resolve: %v", err)
 			http.Error(w, "resolve error", http.StatusBadGateway)
-			s.emit(querylog.FromFailure(wireName, vip, qt, lat, dns.RcodeServerFailure, "SERVFAIL", "错误"))
+			s.emit(querylog.FromFailure(wireName, vip, qt, lat, dns.RcodeServerFailure, "SERVFAIL", "错误", resolver.FailureTraceForLog(req, err)))
 			return
 		}
 		if resp == nil || resp.Msg == nil {
 			http.Error(w, "empty", http.StatusBadGateway)
-			s.emit(querylog.FromFailure(wireName, vip, qt, lat, dns.RcodeServerFailure, "SERVFAIL", "错误"))
+			s.emit(querylog.FromFailure(wireName, vip, qt, lat, dns.RcodeServerFailure, "SERVFAIL", "错误", resolver.FailureTraceForLog(req, nil)))
 			return
 		}
 		w.Header().Set("Content-Type", "application/dns-json")

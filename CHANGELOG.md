@@ -6,6 +6,23 @@
 
 （尚无条目。）
 
+## [1.0.4] — 2026-04-07
+
+### 上游与 DoH
+
+- 每个 HTTPS 上游可配置 **`doh_mode`**：`auto`（按 URL 是否以 `/resolve` 判断）、`rfc8484`（POST 二进制）、`json_get`（Google JSON GET，URL 须为 `…/resolve`）。
+- 管理台上游表增加 **DoH 方式** 下拉框；`configs/config.example.yaml` 补充说明与示例。
+- **`json_get` 查询日志**：记录发往上游的完整 GET URL（`name`、`type`、`edns_client_subnet` 等），控制台「查询过程」中展示 `cn_upstream_request_url` / `out_upstream_request_url`。
+
+### 查询日志与解析
+
+- 解析失败（SERVFAIL、上游错误等）仍写入 **`ResolveTrace`**（`ErrWithTrace`）：含客户端传输、ECS 前奏及失败原因；过载等无解析前奏时回退为仅传输层信息。
+- 启动/保存配置时校验：`doh_mode` 为 `json_get` 时 URL 路径须以 **`/resolve`** 结尾。
+
+### 文档与镜像
+
+- `README.md`、`docs/DEPLOY.md`、`docker-compose.yml`、脚本示例：示例镜像版本 **v1.0.4**。
+
 ## [1.0.3] — 2026-04-06
 
 ### 控制台

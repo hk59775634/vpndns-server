@@ -234,13 +234,13 @@
         <div class="page" id="page-upstream">
           <div class="section">
             <h2>国内上游（CN）</h2>
-            <p class="hint">DoH 填「HTTPS 查询地址」列；纯 UDP 填「UDP 地址」列（如 223.5.5.5:53）。权重越大越常被选中。</p>
-            <table class="upstream" id="tbl-cn"><thead><tr><th class="w-name">名称</th><th class="w-url">DoH 地址（URL）</th><th class="w-addr">UDP 地址</th><th class="w-w">权重</th><th></th></tr></thead><tbody></tbody></table>
+            <p class="hint">填 HTTPS URL 时，用「DoH 方式」选择 <strong>RFC 8484</strong>（POST 二进制）或 <strong>JSON GET</strong>（<code>/resolve</code>）；选<strong>自动</strong>时按 URL 路径判断（以 <code>/resolve</code> 结尾则用 JSON）。纯 UDP 只填「UDP 地址」。权重越大越常被选中。</p>
+            <table class="upstream" id="tbl-cn"><thead><tr><th class="w-name">名称</th><th class="w-url">DoH 地址（URL）</th><th class="w-doh">DoH 方式</th><th class="w-addr">UDP 地址</th><th class="w-w">权重</th><th></th></tr></thead><tbody></tbody></table>
             <div class="row-actions"><button type="button" class="btn btn-secondary btn-sm" id="add-cn">添加上游</button></div>
           </div>
           <div class="section">
             <h2>海外上游（OUT）</h2>
-            <table class="upstream" id="tbl-out"><thead><tr><th class="w-name">名称</th><th class="w-url">DoH 地址（URL）</th><th class="w-addr">UDP 地址</th><th class="w-w">权重</th><th></th></tr></thead><tbody></tbody></table>
+            <table class="upstream" id="tbl-out"><thead><tr><th class="w-name">名称</th><th class="w-url">DoH 地址（URL）</th><th class="w-doh">DoH 方式</th><th class="w-addr">UDP 地址</th><th class="w-w">权重</th><th></th></tr></thead><tbody></tbody></table>
             <div class="row-actions"><button type="button" class="btn btn-secondary btn-sm" id="add-out">添加上游</button></div>
           </div>
         </div>
@@ -304,12 +304,12 @@
             </div>
             <p class="hint" style="margin-top:12px">上图仅为逻辑示意；实际以配置与解析路径为准。缓存键形态：<code>dns:域名:类型:global</code> 或 <code>dns:域名:类型:ecs:子网</code>。</p>
             <p class="hint">映射 API 留空时：Redis 未命中后使用<strong>本机公网出口 IP</strong>（由下方探测 URL 获取，默认 ipify）写入 Redis。</p>
-            <p class="hint"><strong>默认 ECS</strong>：发往国内上游时，若 VIP 无法解析出映射/公网 IP，则用「默认国内 ECS」作为 EDNS Client Subnet；发往海外上游时，在客户端未带 ECS 且映射 IP 也不可用时，用「默认全球 ECS」（仍优先使用客户端 ECS 与映射得到的 IP）。</p>
+            <p class="hint"><strong>默认 ECS</strong>：填写「默认国内 ECS」后，国内上游与 ECS 维度缓存<strong>始终</strong>使用该地址（IPv4 /24、IPv6 /48），不再用 VIP 映射公网 IP 或客户端 EDNS 子网。未填「默认全球 ECS」时，海外上游在未带客户端 EDNS 子网时会<strong>回退</strong>到「默认国内 ECS」，而不会用映射公网 IP。</p>
             <div class="grid2">
               <label class="field" style="grid-column:1/-1"><span class="key">映射 API 地址（GET，查询参数 ip）</span><span class="cfg-path">mapper.api_url</span><input type="text" id="mapper-url" placeholder="留空则用本机公网 IP" /></label>
               <label class="field" style="grid-column:1/-1"><span class="key">本机公网 IP 探测 URL</span><span class="cfg-path">mapper.public_ip_probe_url</span><input type="text" id="mapper-probe-url" placeholder="https://api.ipify.org" /></label>
               <label class="field"><span class="key">映射缓存 TTL（秒）</span><span class="cfg-path">mapper.ttl_seconds</span><input type="number" id="mapper-ttl" min="1" step="1" /></label>
-              <label class="field" style="grid-column:1/-1"><span class="key">默认国内 ECS（公网 IPv4/IPv6）</span><span class="cfg-path">mapper.default_cn_ecs</span><input type="text" id="mapper-cn-ecs" placeholder="无映射时发往 cn_dns 的 ECS 源地址" /></label>
+              <label class="field" style="grid-column:1/-1"><span class="key">默认国内 ECS（公网 IPv4/IPv6）</span><span class="cfg-path">mapper.default_cn_ecs</span><input type="text" id="mapper-cn-ecs" placeholder="无公网映射时强制作为 cn_dns 的 ECS 源" /></label>
               <label class="field" style="grid-column:1/-1"><span class="key">默认全球 ECS（公网 IPv4/IPv6）</span><span class="cfg-path">mapper.default_out_ecs</span><input type="text" id="mapper-out-ecs" placeholder="发往 out_dns 时的 ECS 回退地址" /></label>
             </div>
           </div>
@@ -506,7 +506,7 @@
           </div>
           <div class="section">
             <h2>查询日志</h2>
-            <p class="hint">时间、请求（域名 + 类型）、响应（记录摘要与路由）、客户端（源地址 / 映射 IP / ECS）。<strong>每页内最新记录在上方</strong>；支持分页拉取，减轻大量日志时的卡顿。可按域名、源 IP、映射 IP 或关键词筛选（与关系）。<strong>一键清空</strong>会删除当前后端中的全部查询日志（Redis 列表或进程内缓冲），不可撤销。</p>
+            <p class="hint">时间、请求（域名 + 类型）、响应（记录摘要与路由）、客户端（源地址 / 映射 IP / ECS）。点击<strong>详细</strong>可查看是否走国内/海外上游、是否携带 ECS、过程步骤及响应文本。<strong>每页内最新记录在上方</strong>；支持分页与筛选。<strong>一键清空</strong>会删除当前后端中的全部查询日志，不可撤销。</p>
             <div class="grid2" style="margin-top:0.35rem">
               <label class="field"><span class="key">域名</span><input type="text" id="logs-filter-domain" placeholder="模糊匹配" autocomplete="off" /></label>
               <label class="field"><span class="key">源 IP</span><input type="text" id="logs-filter-vip" placeholder="客户端源地址" autocomplete="off" /></label>
@@ -544,6 +544,7 @@
                     <th class="log-col-req">请求</th>
                     <th class="log-col-resp">响应</th>
                     <th class="log-col-client">客户端</th>
+                    <th class="log-col-detail">操作</th>
                   </tr>
                 </thead>
                 <tbody id="logs-tbody"></tbody>
@@ -797,12 +798,18 @@
   wirePemFileInput('listen-tls-key-file', 'listen-tls-key-pem');
 
   function emptyRow() {
-    return { name: '', url: '', address: '', weight: 1 };
+    return { name: '', url: '', doh_mode: 'auto', address: '', weight: 1 };
   }
+
+  const UPSTREAM_DOH_MODE_OPTS =
+    '<option value="auto">自动</option>' +
+    '<option value="rfc8484">RFC 8484（POST 二进制）</option>' +
+    '<option value="json_get">JSON GET（/resolve）</option>';
 
   const UPSTREAM_ROW_HTML =
     '<td><input type="text" class="u-name" placeholder="显示名称" /></td>' +
-    '<td><input type="text" class="u-url" placeholder="https://…/dns-query" /></td>' +
+    '<td><input type="text" class="u-url" placeholder="https://…" /></td>' +
+    '<td><select class="u-doh-mode" title="仅 HTTPS URL 有效">' + UPSTREAM_DOH_MODE_OPTS + '</select></td>' +
     '<td><input type="text" class="u-addr" placeholder="如 223.5.5.5:53" /></td>' +
     '<td><input type="number" class="u-w" min="1" step="1" /></td>' +
     '<td><button type="button" class="btn btn-danger btn-sm u-del">删除</button></td>';
@@ -818,6 +825,7 @@
     const tr = document.createElement('tr');
     tr.innerHTML = UPSTREAM_ROW_HTML;
     tr.querySelector('.u-w').value = '1';
+    tr.querySelector('.u-doh-mode').value = 'auto';
     bindUpstreamRow(tr, tbody);
     tbody.appendChild(tr);
   }
@@ -829,6 +837,9 @@
       tr.innerHTML = UPSTREAM_ROW_HTML;
       tr.querySelector('.u-name').value = row.name || '';
       tr.querySelector('.u-url').value = row.url || '';
+      const dm = tr.querySelector('.u-doh-mode');
+      const dmv = (row.doh_mode || 'auto').toLowerCase();
+      dm.value = (dmv === 'rfc8484' || dmv === 'json_get' || dmv === 'auto') ? dmv : 'auto';
       tr.querySelector('.u-addr').value = row.address || '';
       tr.querySelector('.u-w').value = row.weight > 0 ? row.weight : 1;
       bindUpstreamRow(tr, tbody);
@@ -851,10 +862,11 @@
     tbody.querySelectorAll('tr').forEach(tr => {
       const name = tr.querySelector('.u-name').value.trim();
       const url = tr.querySelector('.u-url').value.trim();
+      const dohMode = tr.querySelector('.u-doh-mode').value.trim() || 'auto';
       const address = tr.querySelector('.u-addr').value.trim();
       const w = parseInt(tr.querySelector('.u-w').value, 10) || 1;
       if (!name && !url && !address) return;
-      out.push({ name, url, address, weight: w });
+      out.push({ name, url, doh_mode: dohMode, address, weight: w });
     });
     return out;
   }
@@ -1720,6 +1732,82 @@
       pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '.' + ms
     );
   }
+  function yn(b) {
+    return b ? '是' : '否';
+  }
+  function fallbackLogTraceSummary(r) {
+    const parts = [];
+    if (r.cached) parts.push('命中缓存');
+    if (r.cn_only) parts.push('国内路由');
+    if (r.went_out) parts.push('已使用海外上游');
+    if (r.blocked_wl) parts.push('非白名单拦截');
+    if (parts.length) return '本条记录无详细追踪数据（多为旧版或缓存未展开）。已知：' + parts.join(' · ') + '。';
+    return '本条记录无详细追踪数据（多为升级前写入的日志）。';
+  }
+  function formatLogTraceHtml(r) {
+    const t = r.trace;
+    if (!t || typeof t !== 'object') {
+      return '<p class="hint">' + escHtml(fallbackLogTraceSummary(r)) + '</p>';
+    }
+    let html = '';
+    if (Array.isArray(t.steps) && t.steps.length) {
+      html += '<h4 class="trace-h4">查询过程</h4><ol class="trace-steps">';
+      for (const s of t.steps) html += '<li>' + escHtml(s) + '</li>';
+      html += '</ol>';
+    }
+    function row(label, val) {
+      if (val === undefined || val === null || val === '') return '';
+      return '<dt>' + escHtml(label) + '</dt><dd>' + escHtml(String(val)) + '</dd>';
+    }
+    function transportLabel(x) {
+      if (x === 'doh') return 'DoH（RFC 8484，POST application/dns-message）';
+      if (x === 'doh-json') return 'DoH（Google JSON，GET application/dns-json）';
+      if (x === 'udp') return 'DNS/UDP';
+      if (x === 'tcp') return 'DNS/TCP';
+      return x ? String(x) : '';
+    }
+    if (t.transport || t.doh_url || t.doh_post_body_hex) {
+      html += '<h4 class="trace-h4">客户端传输</h4><dl class="trace-dl">';
+      html += row('传输方式', transportLabel(t.transport) || '—');
+      html += row('完整请求 URL', t.doh_url);
+      html += '</dl>';
+      if (t.doh_post_body_hex) {
+        html += '<p class="hint" style="margin:0.35rem 0 0.25rem">POST body（原始二进制 DNS 报文，十六进制）</p>';
+        if (t.doh_post_body_truncated) {
+          html += '<p class="hint" style="margin:0 0 0.5rem">已截断：仅保留前若干字节以降低存储体积。</p>';
+        }
+        html += '<pre class="trace-pre">' + escHtml(t.doh_post_body_hex) + '</pre>';
+      }
+    }
+    html += '<h4 class="trace-h4">路由与上游</h4><dl class="trace-dl">';
+    html += row('问题', t.question);
+    html += row('VIP', t.vip);
+    html += row('映射 IP', t.real_ip_mapped);
+    html += row('公网 IP（ECS 用）', t.public_ip_for_ecs);
+    html += row('客户端 EDNS 子网', t.client_edns || '（无）');
+    html += row('缓存维度（ECS 键）', t.effective_subnet);
+    html += row('缓存来源', t.from_cache || '');
+    html += row('国内上游已查询', yn(t.cn_upstream_used));
+    html += row('国内上游回源', t.cn_upstream_endpoint || '—');
+    html += row('国内上游请求 URL（Google JSON GET）', t.cn_upstream_request_url);
+    html += row('发往国内上游的 ECS', t.cn_ecs || '—');
+    html += row('国内上游响应摘要', t.cn_response_summary);
+    html += row('国内 IP 分类', t.ip_classification);
+    html += row('海外上游已查询', yn(t.out_upstream_used));
+    html += row('海外上游回源', t.out_upstream_endpoint || '—');
+    html += row('海外上游请求 URL（Google JSON GET）', t.out_upstream_request_url);
+    html += row('发往海外上游的 ECS', t.out_ecs || '—');
+    html += row('海外响应摘要', t.out_response_summary);
+    html += row('拦截原因', t.blocked_reason);
+    html += '</dl>';
+    if (t.cn_response_wire) {
+      html += '<h4 class="trace-h4">国内上游响应（文本）</h4><p class="hint" style="margin:0 0 0.35rem">解码后的 DNS 报文（miekg/dns 文本格式），与经 DoH 或 UDP 传输无关，并非 HTTP 响应体原文。</p><pre class="trace-pre">' + escHtml(t.cn_response_wire) + '</pre>';
+    }
+    if (t.out_response_wire) {
+      html += '<h4 class="trace-h4">海外上游响应（文本）</h4><p class="hint" style="margin:0 0 0.35rem">同上，为解码后的 DNS 报文。</p><pre class="trace-pre">' + escHtml(t.out_response_wire) + '</pre>';
+    }
+    return html;
+  }
   function routePillClass(route) {
     const r = (route || '').trim();
     if (r === '国内') return 'route-pill route-cn';
@@ -1784,7 +1872,10 @@
         '<td class="log-col-time">' + formatLogTime(r.time) + '</td>' +
         '<td class="log-col-req">' + reqHtml + '</td>' +
         '<td class="log-col-resp">' + respHtml + '</td>' +
-        '<td class="log-col-client">' + clientHtml + '</td>';
+        '<td class="log-col-client">' + clientHtml + '</td>' +
+        '<td class="log-col-detail"><button type="button" class="btn btn-secondary btn-sm log-detail-btn">详细</button></td>';
+      const btn = tr.querySelector('.log-detail-btn');
+      if (btn) btn.onclick = () => openDrawer('查询过程', formatLogTraceHtml(r));
       tbody.appendChild(tr);
     }
   }

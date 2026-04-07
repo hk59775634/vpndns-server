@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -43,10 +44,22 @@ func logMatchesQuery(rec *resolver.LogRecord, domainQ, vipQ, realQ, freeQ string
 			rec.Route,
 			strconv.FormatInt(rec.LatencyMS, 10),
 			strconv.Itoa(rec.Rcode),
+			traceHaystack(rec),
 		}, "\n"))
 		if !strings.Contains(hay, f) {
 			return false
 		}
 	}
 	return true
+}
+
+func traceHaystack(rec *resolver.LogRecord) string {
+	if rec == nil || rec.Trace == nil {
+		return ""
+	}
+	b, err := json.Marshal(rec.Trace)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
