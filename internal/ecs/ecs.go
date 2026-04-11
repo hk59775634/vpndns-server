@@ -3,6 +3,7 @@ package ecs
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/miekg/dns"
 )
@@ -37,6 +38,82 @@ func FromClientOrIP(clientECS string, realIP net.IP) string {
 		return SubnetForECS(realIP)
 	}
 	return "0.0.0.0/24"
+}
+
+// GoogleSubnetQueryParam builds the edns_client_subnet query value for Google JSON GET
+// (same semantics as the wire EDNS ECS sent to other upstreams).
+func GoogleSubnetQueryParam(ip net.IP, bits int) string {
+	if ip == nil || bits <= 0 {
+		return ""
+	}
+	if ip4 := ip.To4(); ip4 != nil {
+		if bits > 32 {
+			bits = 32
+		}
+		m := net.CIDRMask(bits, 32)
+		n := ip4.Mask(m)
+		return fmt.Sprintf("%s/%d", n.String(), bits)
+	}
+	ip6 := ip.To16()
+	if ip6 == nil {
+		return ""
+	}
+	if bits > 128 {
+		bits = 128
+	}
+	m := net.CIDRMask(bits, 128)
+	n := ip6.Mask(m)
+	return fmt.Sprintf("%s/%d", n.String(), bits)
+}
+
+// ValidNormalizedSubnet parses a CIDR string and returns a canonical form suitable
+// for cache keys. Empty string is returned for invalid input or prefix length 0 (/0).
+func ValidNormalizedSubnet(cidr string) string {
+	s := strings.TrimSpace(cidr)
+	if s == "" {
+		return ""
+	}
+	_, ipNet, err := net.ParseCIDR(s)
+	if err != nil || ipNet == nil {
+		return ""
+	}
+	ones, bits := ipNet.Mask.Size()
+	if ones <= 0 || bits <= 0 {
+		return ""
+	}
+	return normalizeSubnet(ipNet)
+}
+
+// SubnetKeyForRead picks the ECS dimension for cache lookup: mapped Google echo (from Redis),
+// else the subnet sent to upstream (Google JSON param or equivalent), else FromClientOrIP.
+func SubnetKeyForRead(mappedEffective, sentToUpstream, clientECS string, subnetIP net.IP) string {
+	if mappedEffective != "" {
+		if v := ValidNormalizedSubnet(mappedEffective); v != "" {
+			return v
+		}
+	}
+	if sentToUpstream != "" {
+		if v := ValidNormalizedSubnet(sentToUpstream); v != "" {
+			return v
+		}
+	}
+	return FromClientOrIP(clientECS, subnetIP)
+}
+
+// SubnetKeyForStore picks the ECS dimension to store after an upstream response.
+// Prefer a valid Google JSON echo; otherwise sent param; otherwise FromClientOrIP.
+func SubnetKeyForStore(googleEcho, sentToUpstream, clientECS string, subnetIP net.IP) string {
+	if googleEcho != "" {
+		if v := ValidNormalizedSubnet(googleEcho); v != "" {
+			return v
+		}
+	}
+	if sentToUpstream != "" {
+		if v := ValidNormalizedSubnet(sentToUpstream); v != "" {
+			return v
+		}
+	}
+	return FromClientOrIP(clientECS, subnetIP)
 }
 
 func normalizeSubnet(ipNet *net.IPNet) string {

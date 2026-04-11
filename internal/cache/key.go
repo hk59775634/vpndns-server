@@ -14,6 +14,11 @@ func qtypeStr(q uint16) string {
 	return fmt.Sprintf("TYPE%d", q)
 }
 
+// QTypeString returns the canonical short name for qtype (same as used in Redis keys and coalescing).
+func QTypeString(q uint16) string {
+	return qtypeStr(q)
+}
+
 // ECSKey builds dns:{domain}:{type}:ecs:{subnet}
 func ECSKey(domain string, qtype uint16, ecsSubnet string) string {
 	d := strings.TrimSuffix(strings.ToLower(domain), ".")

@@ -171,6 +171,10 @@ func annotateCNTrace(tr *models.ResolveTrace, cnResp *models.DNSResponse) {
 			"国内上游实际请求（Google JSON GET）："+cnResp.UpstreamRequestURL,
 		)
 	}
+	if echo := strings.TrimSpace(cnResp.GoogleEchoedECS); echo != "" {
+		tr.GoogleEchoedSubnet = echo
+		tr.Steps = append(tr.Steps, "Google JSON 响应中的 edns_client_subnet："+echo)
+	}
 	if cnResp.UpstreamEndpoint != "" {
 		tr.Steps = append(tr.Steps,
 			"国内上游回源："+cnResp.UpstreamEndpoint,

@@ -11,6 +11,8 @@ type ResolveTrace struct {
 	Question        string `json:"question,omitempty"`
 	ClientEDNS      string `json:"client_edns,omitempty"`
 	EffectiveSubnet string `json:"effective_subnet,omitempty"`
+	// GoogleEchoedSubnet is the edns_client_subnet echoed by Google JSON /resolve (after disable_dnssec), when applicable.
+	GoogleEchoedSubnet string `json:"google_echoed_subnet,omitempty"`
 
 	CNUpstreamUsed    bool   `json:"cn_upstream_used"`
 	CNUpstreamEndpoint string `json:"cn_upstream_endpoint,omitempty"` // e.g. DoH URL or UDP address

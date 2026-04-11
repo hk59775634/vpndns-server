@@ -6,22 +6,27 @@
 
 （尚无条目。）
 
-## [1.0.4] — 2026-04-07
+## [1.0.4] — 2026-04-11
 
 ### 上游与 DoH
 
 - 每个 HTTPS 上游可配置 **`doh_mode`**：`auto`（按 URL 是否以 `/resolve` 判断）、`rfc8484`（POST 二进制）、`json_get`（Google JSON GET，URL 须为 `…/resolve`）。
 - 管理台上游表增加 **DoH 方式** 下拉框；`configs/config.example.yaml` 补充说明与示例。
 - **`json_get` 查询日志**：记录发往上游的完整 GET URL（`name`、`type`、`edns_client_subnet` 等），控制台「查询过程」中展示 `cn_upstream_request_url` / `out_upstream_request_url`。
+- **Google JSON `/resolve`**：固定附加 **`disable_dnssec=true`**，解析响应中的 **`edns_client_subnet`** 作为 Google 实际使用的 ECS 范围；**Redis ECS 缓存键**优先使用该回显（规范化后），无效（如 **`/0`**）时回退为请求参数或 `FromClientOrIP`。
+- **Redis `dns:ecsmap:*`**：记录「发往 Google 的 `edns_client_subnet` 字符串 → 规范化后的回显范围」，便于后续请求命中与 Google 聚合一致的 ECS 缓存桶。
 
 ### 查询日志与解析
 
 - 解析失败（SERVFAIL、上游错误等）仍写入 **`ResolveTrace`**（`ErrWithTrace`）：含客户端传输、ECS 前奏及失败原因；过载等无解析前奏时回退为仅传输层信息。
 - 启动/保存配置时校验：`doh_mode` 为 `json_get` 时 URL 路径须以 **`/resolve`** 结尾。
+- **国内上游合并键**：`singleflight` 使用 `cache.QTypeString` 与 Redis 键一致，避免 QTYPE 命名分叉。
+- 抽取 **`queryCNWithECSTrace`**；读路径缓存键变量更名为 **`lookupECSKey`**（与写入 **`storeKey`** 区分）。
 
 ### 文档与镜像
 
 - `README.md`、`docs/DEPLOY.md`、`docker-compose.yml`、脚本示例：示例镜像版本 **v1.0.4**。
+- 新增 **`docs/resolve-query-logic.md`**：智能解析主路径、ECS 缓存与上游说明（含附录：已做/未采纳的优化项）。
 
 ## [1.0.3] — 2026-04-06
 

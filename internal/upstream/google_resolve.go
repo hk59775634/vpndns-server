@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"github.com/miekg/dns"
+
+	"github.com/vpndns/cdn/internal/ecs"
 )
 
 // JSON shapes for Google Public DNS HTTPS JSON API (GET /resolve).
@@ -24,8 +26,10 @@ type googleResolveJSON struct {
 	RA       bool              `json:"RA"`
 	AD       bool              `json:"AD"`
 	CD       bool              `json:"CD"`
-	Question []googleJSONQ     `json:"Question,omitempty"`
-	Answer   []googleJSONAnswer `json:"Answer,omitempty"`
+	// EdnsClientSubnet is echoed by Google when applicable (requires disable_dnssec for a meaningful scope).
+	EdnsClientSubnet string            `json:"edns_client_subnet,omitempty"`
+	Question         []googleJSONQ     `json:"Question,omitempty"`
+	Answer           []googleJSONAnswer `json:"Answer,omitempty"`
 }
 
 type googleJSONQ struct {
@@ -49,37 +53,13 @@ func isGoogleJSONResolveURL(raw string) bool {
 	return strings.HasSuffix(path, "/resolve")
 }
 
-func ecsToGoogleSubnet(ip net.IP, bits int) string {
-	if ip == nil || bits <= 0 {
-		return ""
-	}
-	if ip4 := ip.To4(); ip4 != nil {
-		if bits > 32 {
-			bits = 32
-		}
-		m := net.CIDRMask(bits, 32)
-		n := ip4.Mask(m)
-		return fmt.Sprintf("%s/%d", n.String(), bits)
-	}
-	ip6 := ip.To16()
-	if ip6 == nil {
-		return ""
-	}
-	if bits > 128 {
-		bits = 128
-	}
-	m := net.CIDRMask(bits, 128)
-	n := ip6.Mask(m)
-	return fmt.Sprintf("%s/%d", n.String(), bits)
-}
-
-func (p *Pool) exchangeGoogleJSONResolve(ctx context.Context, rawURL string, msg *dns.Msg, ecsIP net.IP, ecsBits int) (*dns.Msg, string, error) {
+func (p *Pool) exchangeGoogleJSONResolve(ctx context.Context, rawURL string, msg *dns.Msg, ecsIP net.IP, ecsBits int) (*dns.Msg, string, string, error) {
 	if msg == nil || len(msg.Question) == 0 {
-		return nil, "", fmt.Errorf("google json resolve: no question")
+		return nil, "", "", fmt.Errorf("google json resolve: no question")
 	}
 	base, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	base.RawQuery = ""
 	base.Fragment = ""
@@ -89,7 +69,8 @@ func (p *Pool) exchangeGoogleJSONResolve(ctx context.Context, rawURL string, msg
 	qs := url.Values{}
 	qs.Set("name", name)
 	qs.Set("type", strconv.Itoa(int(q.Qtype)))
-	if sub := ecsToGoogleSubnet(ecsIP, ecsBits); sub != "" {
+	qs.Set("disable_dnssec", "true")
+	if sub := ecs.GoogleSubnetQueryParam(ecsIP, ecsBits); sub != "" {
 		qs.Set("edns_client_subnet", sub)
 	}
 	base.RawQuery = qs.Encode()
@@ -97,7 +78,7 @@ func (p *Pool) exchangeGoogleJSONResolve(ctx context.Context, rawURL string, msg
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
 	if err != nil {
-		return nil, fullURL, err
+		return nil, fullURL, "", err
 	}
 	req.Header.Set("Accept", "application/dns-json")
 
@@ -106,26 +87,27 @@ func (p *Pool) exchangeGoogleJSONResolve(ctx context.Context, rawURL string, msg
 	p.mu.RUnlock()
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fullURL, err
+		return nil, fullURL, "", err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 	if err != nil {
-		return nil, fullURL, err
+		return nil, fullURL, "", err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fullURL, fmt.Errorf("google json resolve: http %d", resp.StatusCode)
+		return nil, fullURL, "", fmt.Errorf("google json resolve: http %d", resp.StatusCode)
 	}
 	var gj googleResolveJSON
 	if err := json.Unmarshal(body, &gj); err != nil {
-		return nil, fullURL, fmt.Errorf("google json resolve: decode: %w", err)
+		return nil, fullURL, "", fmt.Errorf("google json resolve: decode: %w", err)
 	}
+	echo := strings.TrimSpace(gj.EdnsClientSubnet)
 	out, err := googleResolveJSONToMsg(msg, &gj)
 	if err != nil {
-		return nil, fullURL, err
+		return nil, fullURL, echo, err
 	}
-	return out, fullURL, nil
+	return out, fullURL, echo, nil
 }
 
 func googleResolveJSONToMsg(req *dns.Msg, gj *googleResolveJSON) (*dns.Msg, error) {

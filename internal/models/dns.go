@@ -45,6 +45,8 @@ type DNSResponse struct {
 	UpstreamEndpoint string
 	// UpstreamRequestURL is the exact HTTPS URL used for Google JSON GET (/resolve?name=&type=&edns_client_subnet=), when applicable.
 	UpstreamRequestURL string `json:"upstream_request_url,omitempty"`
+	// GoogleEchoedECS is the edns_client_subnet field from Google JSON /resolve when present and applicable.
+	GoogleEchoedECS string `json:"-"`
 }
 
 // QuestionName returns the first question FQDN in lowercase.

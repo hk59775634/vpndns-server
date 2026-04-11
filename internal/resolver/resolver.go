@@ -144,20 +144,24 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 	if cnECSDefault != nil {
 		effectiveSubnetECS = ""
 	}
-	subnetKey := ecs.FromClientOrIP(effectiveSubnetECS, subnetIP)
 
 	ecsIP, ecsBits := cnUpstreamECS(ecsSourceIP, clientECS, cnECSDefault)
+	sentParam := ecs.GoogleSubnetQueryParam(ecsIP, ecsBits)
+	mappedECS, _ := r.cache.GetGoogleECSMap(ctx, sentParam)
+	lookupSubnet := ecs.SubnetKeyForRead(mappedECS, sentParam, effectiveSubnetECS, subnetIP)
+	subnetKey := lookupSubnet
+
 	tr := buildTracePrelude(req, qname, qtype, req.ClientVIP, realIP, ecsSourceIP, clientECS, subnetKey, ecsIP, ecsBits, cnECSDefault)
 
-	// 6. ECS-scoped cache
-	ecsCacheKey := cache.ECSKey(qname, qtype, subnetKey)
-	if resp, ok := r.l1HitECS(ecsCacheKey, req, realIP, subnetKey); ok {
+	// 6. ECS-scoped cache (lookup uses Google-echo mapping + sent subnet; store key may differ after upstream)
+	lookupECSKey := cache.ECSKey(qname, qtype, lookupSubnet)
+	if resp, ok := r.l1HitECS(lookupECSKey, req, realIP, subnetKey); ok {
 		tr.FromCache = "l1_ecs"
 		tr.Steps = append(tr.Steps, "命中进程内 L1 缓存（ECS 键），未访问上游")
 		resp.Log.Trace = tr
 		return resp, nil
 	}
-	if resp, ok := r.cache.Get(ctx, ecsCacheKey); ok && resp != nil && resp.Msg != nil {
+	if resp, ok := r.cache.Get(ctx, lookupECSKey); ok && resp != nil && resp.Msg != nil {
 		tr.FromCache = "redis_ecs"
 		tr.Steps = append(tr.Steps, "命中 Redis 缓存（ECS 键），未访问上游")
 		out := resp.Msg.Copy()
@@ -170,15 +174,15 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 
 	// Non A/AAAA: CN only path (no IP-based split)
 	if qtype != dns.TypeA && qtype != dns.TypeAAAA {
-		cnResp, err := r.queryCNCoalesced(ctx, cfg, req, ecsIP, ecsBits, ecsCacheKey)
+		cnResp, storeKey, storeSubnet, err := r.queryCNWithECSTrace(ctx, cfg, req, ecsIP, ecsBits, qname, qtype, sentParam, effectiveSubnetECS, subnetIP, tr)
 		if err != nil {
 			return nil, wrapResolveErr(tr, err)
 		}
-		annotateCNTrace(tr, cnResp)
+		subnetKey = storeSubnet
 		tr.IPClassification = "非 A/AAAA"
 		tr.Steps = append(tr.Steps, "记录类型非 A/AAAA，不做境内外 IP 分类，仅使用国内上游结果")
 		ttl := effectiveTTL(cnResp, cfg.Resolver.MaxCacheTTLSeconds)
-		r.setBothCaches(ctx, ecsCacheKey, cnResp, ttl)
+		r.setBothCaches(ctx, storeKey, cnResp, ttl)
 		out := cnResp.Msg.Copy()
 		out.SetReply(req.Msg)
 		return &models.DNSResponse{
@@ -188,17 +192,17 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 	}
 
 	// 7–9 CN path with IP classification
-	cnResp, err := r.queryCNCoalesced(ctx, cfg, req, ecsIP, ecsBits, ecsCacheKey)
+	cnResp, storeKey, storeSubnet, err := r.queryCNWithECSTrace(ctx, cfg, req, ecsIP, ecsBits, qname, qtype, sentParam, effectiveSubnetECS, subnetIP, tr)
 	if err != nil {
 		return nil, wrapResolveErr(tr, err)
 	}
-	annotateCNTrace(tr, cnResp)
+	subnetKey = storeSubnet
 	ips := models.ExtractIPs(cnResp.Msg)
 	if len(ips) == 0 {
 		tr.IPClassification = "无 A/AAAA 地址"
 		tr.Steps = append(tr.Steps, "国内 IP 分类：结果中无 A/AAAA 地址")
 		ttl := effectiveTTL(cnResp, cfg.Resolver.MaxCacheTTLSeconds)
-		r.setBothCaches(ctx, ecsCacheKey, cnResp, ttl)
+		r.setBothCaches(ctx, storeKey, cnResp, ttl)
 		out := cnResp.Msg.Copy()
 		out.SetReply(req.Msg)
 		return &models.DNSResponse{
@@ -212,7 +216,7 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 		tr.IPClassification = "全部为国内 IP"
 		tr.Steps = append(tr.Steps, "国内 IP 分类：结果均为国内地址，仅使用国内上游结果")
 		ttl := effectiveTTL(cnResp, cfg.Resolver.MaxCacheTTLSeconds)
-		r.setBothCaches(ctx, ecsCacheKey, cnResp, ttl)
+		r.setBothCaches(ctx, storeKey, cnResp, ttl)
 		out := cnResp.Msg.Copy()
 		out.SetReply(req.Msg)
 		return &models.DNSResponse{
@@ -226,7 +230,7 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 		filtered := filterAnswersByIPs(cnResp.Msg, cnIPs)
 		fr := &models.DNSResponse{Msg: filtered, MinTTL: models.MinAnswerTTL(filtered, 60)}
 		ttl := effectiveTTL(fr, cfg.Resolver.MaxCacheTTLSeconds)
-		r.setBothCaches(ctx, ecsCacheKey, fr, ttl)
+		r.setBothCaches(ctx, storeKey, fr, ttl)
 		out := filtered.Copy()
 		out.SetReply(req.Msg)
 		return &models.DNSResponse{
@@ -500,7 +504,40 @@ func ecsUpstreamKeyForFlight(ip net.IP, bits int) string {
 	return ip.String() + "/" + strconv.Itoa(bits)
 }
 
-func (r *Resolver) queryCNCoalesced(ctx context.Context, cfg *config.Config, req *models.DNSRequest, ecsIP net.IP, ecsBits int, ecsCacheKey string) (*models.DNSResponse, error) {
+func coalesceCNUpstreamKey(qname string, qtype uint16, ecsIP net.IP, ecsBits int) string {
+	d := strings.TrimSuffix(strings.ToLower(qname), ".")
+	return "cn|" + d + "|" + cache.QTypeString(qtype) + "|" + ecsUpstreamKeyForFlight(ecsIP, ecsBits)
+}
+
+// queryCNWithECSTrace runs coalesced CN upstream, persists Google ECS map, updates trace (EffectiveSubnet + annotateCNTrace).
+func (r *Resolver) queryCNWithECSTrace(ctx context.Context, cfg *config.Config, req *models.DNSRequest, ecsIP net.IP, ecsBits int, qname string, qtype uint16, sentParam, effectiveSubnetECS string, subnetIP net.IP, tr *models.ResolveTrace) (*models.DNSResponse, string, string, error) {
+	cnResp, err := r.queryCNCoalesced(ctx, cfg, req, ecsIP, ecsBits, qname, qtype)
+	if err != nil {
+		return nil, "", "", err
+	}
+	storeKey, storeSubnet := r.cnStoreECSKey(ctx, qname, qtype, sentParam, effectiveSubnetECS, subnetIP, cnResp)
+	if tr != nil {
+		tr.EffectiveSubnet = storeSubnet
+	}
+	annotateCNTrace(tr, cnResp)
+	return cnResp, storeKey, storeSubnet, nil
+}
+
+func (r *Resolver) cnStoreECSKey(ctx context.Context, qname string, qtype uint16, sentParam, effectiveSubnetECS string, subnetIP net.IP, cnResp *models.DNSResponse) (storeKey string, storeSubnet string) {
+	echo := ""
+	if cnResp != nil {
+		echo = cnResp.GoogleEchoedECS
+	}
+	storeSubnet = ecs.SubnetKeyForStore(echo, sentParam, effectiveSubnetECS, subnetIP)
+	if sentParam != "" && cnResp != nil {
+		if echoNorm := ecs.ValidNormalizedSubnet(cnResp.GoogleEchoedECS); echoNorm != "" {
+			_ = r.cache.SetGoogleECSMap(ctx, sentParam, echoNorm, 0)
+		}
+	}
+	return cache.ECSKey(qname, qtype, storeSubnet), storeSubnet
+}
+
+func (r *Resolver) queryCNCoalesced(ctx context.Context, cfg *config.Config, req *models.DNSRequest, ecsIP net.IP, ecsBits int, qname string, qtype uint16) (*models.DNSResponse, error) {
 	if cfg == nil {
 		return r.pool.QueryCN(ctx, req, ecsIP, ecsBits)
 	}
@@ -511,7 +548,7 @@ func (r *Resolver) queryCNCoalesced(ctx context.Context, cfg *config.Config, req
 	if to <= 0 {
 		to = 3 * time.Second
 	}
-	key := "cn|" + ecsCacheKey + ":" + ecsUpstreamKeyForFlight(ecsIP, ecsBits)
+	key := coalesceCNUpstreamKey(qname, qtype, ecsIP, ecsBits)
 	v, err, _ := r.sf.Do(key, func() (interface{}, error) {
 		uctx, cancel := context.WithTimeout(context.Background(), to)
 		defer cancel()

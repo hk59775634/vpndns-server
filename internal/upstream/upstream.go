@@ -214,13 +214,14 @@ func (p *Pool) query(ctx context.Context, list []config.UpstreamSpec, req *model
 		}
 		var resp *dns.Msg
 		var reqURL string
+		var googleEcho string
 		var err error
 		func() {
 			p.mu.RLock()
 			g := p.guard
 			p.mu.RUnlock()
 			if g == nil {
-				resp, reqURL, err = p.exchange(ctx, u, msg, ecsIP, ecsBits)
+				resp, reqURL, googleEcho, err = p.exchange(ctx, u, msg, ecsIP, ecsBits)
 				return
 			}
 			release, aerr := g.AcquireUpstream(ctx)
@@ -229,7 +230,7 @@ func (p *Pool) query(ctx context.Context, list []config.UpstreamSpec, req *model
 				return
 			}
 			defer release()
-			resp, reqURL, err = p.exchange(ctx, u, msg, ecsIP, ecsBits)
+			resp, reqURL, googleEcho, err = p.exchange(ctx, u, msg, ecsIP, ecsBits)
 		}()
 		if err != nil {
 			lastErr = err
@@ -244,6 +245,7 @@ func (p *Pool) query(ctx context.Context, list []config.UpstreamSpec, req *model
 			MinTTL:             models.MinAnswerTTL(resp, 60),
 			UpstreamEndpoint:   formatUpstreamSpec(u),
 			UpstreamRequestURL: reqURL,
+			GoogleEchoedECS:    googleEcho,
 		}, nil
 	}
 	if lastErr == nil {
@@ -283,23 +285,23 @@ func formatUpstreamSpec(u *config.UpstreamSpec) string {
 	return ""
 }
 
-func (p *Pool) exchange(ctx context.Context, u *config.UpstreamSpec, msg *dns.Msg, ecsIP net.IP, ecsBits int) (*dns.Msg, string, error) {
+func (p *Pool) exchange(ctx context.Context, u *config.UpstreamSpec, msg *dns.Msg, ecsIP net.IP, ecsBits int) (*dns.Msg, string, string, error) {
 	switch {
 	case strings.TrimSpace(u.URL) != "":
 		useJSON, err := pickDoHExchangeJSON(u)
 		if err != nil {
-			return nil, "", err
+			return nil, "", "", err
 		}
 		if useJSON {
 			return p.exchangeGoogleJSONResolve(ctx, u.URL, msg, ecsIP, ecsBits)
 		}
 		m, err := p.exchangeDoH(ctx, u.URL, msg)
-		return m, "", err
+		return m, "", "", err
 	case strings.TrimSpace(u.Address) != "":
 		m, err := p.exchangeUDP(ctx, u.Address, msg)
-		return m, "", err
+		return m, "", "", err
 	default:
-		return nil, "", fmt.Errorf("upstream %q has no url or address", u.Name)
+		return nil, "", "", fmt.Errorf("upstream %q has no url or address", u.Name)
 	}
 }
 
