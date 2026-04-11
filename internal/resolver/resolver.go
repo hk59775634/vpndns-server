@@ -278,7 +278,7 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 	}
 
 	outECSDefault := parseIP(cfg.Mapper.DefaultOUTECS)
-	outEcsIP, outEcsBits := outUpstreamECS(ecsSourceIP, clientECS, outECSDefault, cnECSDefault)
+	outEcsIP, outEcsBits := outUpstreamECS(ecsSourceIP, clientECS, outECSDefault)
 	outResp, err := r.queryOUTCoalesced(ctx, cfg, req, outEcsIP, outEcsBits, gkey)
 	if err != nil {
 		return nil, wrapResolveErr(tr, err)
@@ -402,16 +402,26 @@ func clientPublicECSNet(clientECS string) (ip net.IP, bits int, ok bool) {
 	return nil, 0, false
 }
 
-// outUpstreamECS selects ECS for out_dns: default_out_ecs or default_cn_ecs 作为固定源时
-// 不采用 VIP 映射公网 IP（仍优先客户端 EDNS 子网）；否则按映射公网 IP。
-func outUpstreamECS(ecsSourceIP net.IP, clientECS string, outDefault, cnDefault net.IP) (ip net.IP, bits int) {
+// outUpstreamECS selects ECS for out_dns. Never uses default_cn_ecs: overseas resolvers must not
+// receive a fixed CN subnet as the client's location hint.
+// Priority: 1) Client EDNS subnet if anchor is public unicast (same rule as cnUpstreamECSSelect).
+// 2) Else default_out_ecs if set (/24 v4 or /48 v6).
+// 3) Else VIP→realIP mapped public unicast (/24 or /48).
+// 4) Else omit ECS (nil, 0).
+func outUpstreamECS(ecsSourceIP net.IP, clientECS string, outDefault net.IP) (ip net.IP, bits int) {
+	if ip, bits, ok := clientPublicECSNet(clientECS); ok {
+		return ip, bits
+	}
 	if outDefault != nil {
-		return ecsNetForQuery(nil, clientECS, outDefault)
+		if ip4 := outDefault.To4(); ip4 != nil {
+			return ip4, 24
+		}
+		return outDefault.To16(), 48
 	}
-	if cnDefault != nil {
-		return ecsNetForQuery(nil, clientECS, cnDefault)
+	if ecsSourceIP != nil {
+		return ecsNetForQuery(ecsSourceIP, "", nil)
 	}
-	return ecsNetForQuery(ecsSourceIP, clientECS, nil)
+	return nil, 0
 }
 
 // ecsNetForQuery builds EDNS0 subnet for upstreams: client ECS if present, else mapped real IP, else fallback (e.g. configured default public IP).

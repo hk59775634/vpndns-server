@@ -48,28 +48,29 @@ func TestCnUpstreamECSSelect_noDefaultUsesClientThenMapped(t *testing.T) {
 
 func TestOutUpstreamECS_prefersOutDefault(t *testing.T) {
 	out := net.ParseIP("8.8.8.8")
-	cn := net.ParseIP("58.56.59.66")
 	pub := net.ParseIP("103.6.4.0")
-	ip, bits := outUpstreamECS(pub, "", out, cn)
+	ip, bits := outUpstreamECS(pub, "", out)
 	if bits != 24 || !ip.Equal(out) {
 		t.Fatalf("expected default_out_ecs, got %v/%d", ip, bits)
 	}
 }
 
-func TestOutUpstreamECS_fallsBackToCnDefaultWithoutMappedIP(t *testing.T) {
-	cn := net.ParseIP("58.56.59.66")
+func TestOutUpstreamECS_neverUsesCnDefault_usesMappedOrOmits(t *testing.T) {
 	pub := net.ParseIP("103.6.4.0")
-	ip, bits := outUpstreamECS(pub, "", nil, cn)
-	if bits != 24 || !ip.Equal(cn) {
-		t.Fatalf("expected default_cn_ecs for OUT when default_out empty, got %v/%d", ip, bits)
+	ip, bits := outUpstreamECS(pub, "", nil)
+	if bits != 24 || !ip.Equal(pub) {
+		t.Fatalf("expected mapped public /24, got %v/%d", ip, bits)
+	}
+	ip2, bits2 := outUpstreamECS(nil, "", nil)
+	if ip2 != nil || bits2 != 0 {
+		t.Fatalf("expected no ECS without mapped/out default, got %v/%d", ip2, bits2)
 	}
 }
 
-func TestOutUpstreamECS_clientEDNSOverCnDefault(t *testing.T) {
-	cn := net.ParseIP("58.56.59.66")
+func TestOutUpstreamECS_clientPublicEDNSOverMapped(t *testing.T) {
 	pub := net.ParseIP("103.6.4.0")
-	ip, bits := outUpstreamECS(pub, "192.0.2.0/24", nil, cn)
+	ip, bits := outUpstreamECS(pub, "192.0.2.0/24", nil)
 	if bits != 24 || !ip.Equal(net.ParseIP("192.0.2.0")) {
-		t.Fatalf("expected client ECS first, got %v/%d", ip, bits)
+		t.Fatalf("expected client public ECS first, got %v/%d", ip, bits)
 	}
 }

@@ -85,7 +85,7 @@
 | 7.1 | `wl.Allowed(qname)` 为 false：`blocked(...)`（NXDOMAIN 或 localhost，依 `non_whitelist_action`） |
 | 7.2 | `gkey := cache.GlobalKey(qname, qtype)` → `dns:{domain}:{type}:global` |
 | 7.3 | **L1 / Redis** 按 `gkey` 查询，命中则 `from_cache=l1_global` / `redis_global` |
-| 7.4 | `outEcsIP, outEcsBits := outUpstreamECS(...)`（含 `default_out_ecs` / `default_cn_ecs` 与客户端 ECS 的组合规则） |
+| 7.4 | `outEcsIP, outEcsBits := outUpstreamECS(...)`：客户端**公章网** EDNS 子网 → **`default_out_ecs`**（若配置）→ VIP 映射公网 `/24`·`/48` → 否则**不写 ECS**；**从不**使用 `default_cn_ecs` |
 | 7.5 | `queryOUTCoalesced` → `pool.QueryOUT` |
 | 7.6 | `setBothCaches(ctx, gkey, outResp, ttl)` — **仅全局键**，与 ECS 子网键无关 |
 | 7.7 | 返回 `WentOUT: true` |

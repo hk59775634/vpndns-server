@@ -53,6 +53,7 @@ mapper:
     public_ip_probe_url: ""
     # default_cn_ecs: 国内上游 ECS 保底（仅当客户端无公章网 EDNS 子网且无 VIP→realIP 映射公网时使用）。有客户端公章网子网或映射公网时优先它们。
     default_cn_ecs: ""
+    # default_out_ecs: 海外 out_dns 的 ECS（在客户端无公章网 EDNS 子网时使用）；留空则仅用 VIP→realIP 映射公网 /24·/48，再无则不发 ECS。从不使用 default_cn_ecs。
     default_out_ecs: ""
     http_max_idle_conns: 128
     http_max_idle_conns_per_host: 32
