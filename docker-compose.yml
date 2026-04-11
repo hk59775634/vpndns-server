@@ -1,8 +1,8 @@
 # VPN DNS + Redis（Compose）
 #
 # 多架构镜像由维护者 buildx 推送；正式发版须带 VERSION，同时更新 :vX.Y.Z 与 :latest（历史 v 标签保留在 Hub）：
-#   docker login && VERSION=v1.0.4 ./scripts/docker-buildx-push.sh
-# 生产可将下面 image 改为具体版本，例如 hk59775634/vpndns-server:v1.0.4
+#   docker login && VERSION=v1.0.5 ./scripts/docker-buildx-push.sh
+# 生产可将下面 image 改为具体版本，例如 hk59775634/vpndns-server:v1.0.5
 # 推送后本文件中的 image 在 amd64 / arm64 主机会自动拉取对应架构。
 #
 # 启动：docker compose up -d

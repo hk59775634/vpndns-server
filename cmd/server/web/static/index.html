@@ -309,7 +309,7 @@
               <label class="field" style="grid-column:1/-1"><span class="key">映射 API 地址（GET，查询参数 ip）</span><span class="cfg-path">mapper.api_url</span><input type="text" id="mapper-url" placeholder="留空则用本机公网 IP" /></label>
               <label class="field" style="grid-column:1/-1"><span class="key">本机公网 IP 探测 URL</span><span class="cfg-path">mapper.public_ip_probe_url</span><input type="text" id="mapper-probe-url" placeholder="https://api.ipify.org" /></label>
               <label class="field"><span class="key">映射缓存 TTL（秒）</span><span class="cfg-path">mapper.ttl_seconds</span><input type="number" id="mapper-ttl" min="1" step="1" /></label>
-              <label class="field" style="grid-column:1/-1"><span class="key">默认国内 ECS（公网 IPv4/IPv6）</span><span class="cfg-path">mapper.default_cn_ecs</span><input type="text" id="mapper-cn-ecs" placeholder="无公网映射时强制作为 cn_dns 的 ECS 源" /></label>
+              <label class="field" style="grid-column:1/-1"><span class="key">默认国内 ECS（公网 IPv4/IPv6）</span><span class="cfg-path">mapper.default_cn_ecs</span><input type="text" id="mapper-cn-ecs" placeholder="国内上游 ECS 保底：无公章网客户端子网且无 VIP→realIP 映射公网时使用" /></label>
               <label class="field" style="grid-column:1/-1"><span class="key">默认全球 ECS（公网 IPv4/IPv6）</span><span class="cfg-path">mapper.default_out_ecs</span><input type="text" id="mapper-out-ecs" placeholder="发往 out_dns 时的 ECS 回退地址" /></label>
             </div>
           </div>

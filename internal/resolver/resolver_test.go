@@ -5,22 +5,41 @@ import (
 	"testing"
 )
 
-func TestCnUpstreamECS_usesDefaultWhenConfigured(t *testing.T) {
+func TestCnUpstreamECSSelect_usesDefaultWhenNoPublicClientOrMapped(t *testing.T) {
 	def := net.ParseIP("58.56.59.66")
-	pub := net.ParseIP("103.6.4.0")
-	clientECS := "192.0.2.0/24"
-	ip, bits := cnUpstreamECS(pub, clientECS, def)
-	if bits != 24 || !ip.Equal(def) {
-		t.Fatalf("expected default_cn_ecs 58.56.59.66/24, got %v/%d", ip, bits)
+	// Private client subnet → skip client; no mapped pub in ecsSourceIP if we pass nil
+	ip, bits, src := cnUpstreamECSSelect(nil, "10.1.1.1/24", def)
+	if bits != 24 || !ip.Equal(def) || src != "default_cn" {
+		t.Fatalf("expected default_cn_ecs 58.56.59.66/24 default_cn, got %v/%d %s", ip, bits, src)
 	}
 }
 
-func TestCnUpstreamECS_noDefaultUsesClientThenMapped(t *testing.T) {
+func TestCnUpstreamECSSelect_prefersPublicClientOverDefault(t *testing.T) {
+	def := net.ParseIP("58.56.59.66")
+	pub := net.ParseIP("103.6.4.0")
+	clientECS := "203.0.113.50/32"
+	ip, bits, src := cnUpstreamECSSelect(pub, clientECS, def)
+	if bits != 32 || !ip.Equal(net.ParseIP("203.0.113.50")) || src != "client_edns" {
+		t.Fatalf("expected client EDNS, got %v/%d %s", ip, bits, src)
+	}
+}
+
+func TestCnUpstreamECSSelect_prefersMappedOverDefault(t *testing.T) {
+	def := net.ParseIP("58.56.59.66")
+	pub := net.ParseIP("103.6.4.50")
+	clientECS := "10.1.1.1/24"
+	ip, bits, src := cnUpstreamECSSelect(pub, clientECS, def)
+	if bits != 24 || !ip.Equal(net.ParseIP("103.6.4.50")) || src != "vip_mapped" {
+		t.Fatalf("expected mapped /24 vip_mapped, got %v/%d %s", ip, bits, src)
+	}
+}
+
+func TestCnUpstreamECSSelect_noDefaultUsesClientThenMapped(t *testing.T) {
 	pub := net.ParseIP("203.0.113.50")
 	clientECS := "192.0.2.0/24"
-	ip, bits := cnUpstreamECS(pub, clientECS, nil)
-	if bits != 24 {
-		t.Fatalf("bits: %d", bits)
+	ip, bits, src := cnUpstreamECSSelect(pub, clientECS, nil)
+	if bits != 24 || src != "client_edns" {
+		t.Fatalf("bits: %d src %s", bits, src)
 	}
 	if !ip.Equal(net.ParseIP("192.0.2.0")) {
 		t.Fatalf("expected client ECS address, got %v", ip)

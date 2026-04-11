@@ -22,10 +22,9 @@
 | `realIP` | `mapper.GetRealIP(ctx, ClientVIP)`，失败则 `ParseIP(ClientVIP)` |
 | `ecsSourceIP` | `mapper.PublicUnicastIP(realIP)`，仅公网单播用于上游 ECS |
 | `clientECS` | `req.ClientECS`，若空则从报文 `ecs.EDNS0Subnet(req.Msg)` 取首条 ECS |
-| `cnECSDefault` | 配置 `mapper.default_cn_ecs` 解析为 IP |
-| `subnetIP` | 若配置了 `default_cn_ecs` 则用该 IP；否则用 `ecsSourceIP`（用于「无客户端 ECS 时」推导子网维度） |
-| `effectiveSubnetECS` | 一般为 `clientECS`；若配置了 `default_cn_ecs` 则强制为 `""`（与发往国内上游的 ECS 一致：固定默认源） |
-| `ecsIP, ecsBits` | `cnUpstreamECS(ecsSourceIP, clientECS, cnECSDefault)`：有默认国内 ECS 时固定为 v4 `/24` 或 v6 `/48`；否则 `ecsNetForQuery`（优先客户端 CIDR，否则映射公网 /24 或 /48，等） |
+| `cnECSDefault` | 配置 `mapper.default_cn_ecs` 解析为 IP（**保底**，见下） |
+| `ecsIP, ecsBits, cnECSSource` | `cnUpstreamECSSelect(ecsSourceIP, clientECS, cnECSDefault)`：**1）** 客户端 EDNS 子网锚点为**公网单播**则用其 **source prefix**；**2）** 否则若 `ecsSourceIP`（VIP→realIP 映射公网）非空则用映射地址的 v4 `/24` 或 v6 `/48`；**3）** 否则若配置了 `default_cn_ecs` 则用其 `/24` 或 `/48`；**4）** 否则同 `ecsNetForQuery` 空参。`cnECSSource` 为 `client_edns` / `vip_mapped` / `default_cn` / `none`，供 trace 展示。 |
+| `subnetIP` / `effectiveSubnetECS` | 与上述优先级对齐，供 `SubnetKeyForRead` / `FromClientOrIP` 推导 ECS 缓存维度（客户端公章网子网 → 映射公网 → default_cn） |
 
 **发往国内上游的 EDNS0/wire 与 Google JSON 的 `edns_client_subnet` 参数**均基于上述 `ecsIP, ecsBits`。
 
@@ -214,8 +213,8 @@ flowchart TD
 1. **`queryCNWithECSTrace` 与 `cnStoreECSKey` 分工**  
    保持上游查询、ECS 映射写 Redis、trace 注解集中在一处，避免与 `resolveCore` 内缓存读路径混淆。
 
-2. **`cnUpstreamECS` / `outUpstreamECS` / `ecsNetForQuery`**  
-   与配置 `default_cn_ecs`、`default_out_ecs` 强绑定，改动易导致上游 ECS 与缓存维度不一致。
+2. **`cnUpstreamECSSelect` / `outUpstreamECS` / `ecsNetForQuery`**  
+   国内 ECS 优先级与 OUT 路径耦合配置；改动需同步缓存维度与 trace，避免与 Redis ECS 键不一致。
 
 3. **singleflight 键与 ECS 缓存键解耦**  
    为避免重复打上游而引入；改回耦合可能增加上游 QPS。

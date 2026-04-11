@@ -87,6 +87,37 @@ func describeECS(ip net.IP, bits int) string {
 	return fmt.Sprintf("是，%s/%d", ip.String(), bits)
 }
 
+func tracePublicIPForECS(realIP, ecsSourceIP net.IP, cnDefault net.IP, cnECSSource string) string {
+	switch cnECSSource {
+	case "client_edns":
+		if pub := mapper.PublicUnicastIP(realIP); pub != nil {
+			return "映射公网 " + pub.String() + "；国内上游 ECS 使用客户端 EDNS 公章网子网"
+		}
+		return "国内上游 ECS 使用客户端 EDNS 公章网子网（当前无映射公网单播地址）"
+	case "vip_mapped":
+		if pub := mapper.PublicUnicastIP(realIP); pub != nil {
+			return pub.String() + "（作为国内上游 ECS：VIP→realIP 映射）"
+		}
+		if ecsSourceIP != nil {
+			return ecsSourceIP.String()
+		}
+		return "（映射公网）"
+	case "default_cn":
+		if cnDefault == nil {
+			return "（未配置 default_cn_ecs）"
+		}
+		if pub := mapper.PublicUnicastIP(realIP); pub != nil {
+			return "映射公网 " + pub.String() + "；国内上游 ECS 使用 mapper.default_cn_ecs " + cnDefault.String() + "（客户端无公章网子网）"
+		}
+		return "国内上游 ECS 使用 mapper.default_cn_ecs " + cnDefault.String() + "（无公章网客户端子网且无映射公网）"
+	default:
+		if pub := mapper.PublicUnicastIP(realIP); pub != nil {
+			return pub.String()
+		}
+		return "（无公网单播地址；国内 ECS 见「发往国内上游时 EDNS」）"
+	}
+}
+
 func dnsMsgWireTrunc(m *dns.Msg, max int) string {
 	if m == nil {
 		return ""
@@ -114,7 +145,8 @@ func questionSummaryLine(req *models.DNSRequest) string {
 }
 
 // buildTracePrelude fills common routing context for admin query logs.
-func buildTracePrelude(req *models.DNSRequest, qname string, qtype uint16, vip string, realIP, ecsSourceIP net.IP, clientEDNS, subnetKey string, ecsIP net.IP, ecsBits int, cnDefault net.IP) *models.ResolveTrace {
+// cnECSSource is "client_edns" | "vip_mapped" | "default_cn" | "none" from cnUpstreamECSSelect.
+func buildTracePrelude(req *models.DNSRequest, qname string, qtype uint16, vip string, realIP, ecsSourceIP net.IP, clientEDNS, subnetKey string, ecsIP net.IP, ecsBits int, cnDefault net.IP, cnECSSource string) *models.ResolveTrace {
 	t := &models.ResolveTrace{
 		VIP:               vip,
 		RealIPMapped:      ipString(realIP),
@@ -124,17 +156,7 @@ func buildTracePrelude(req *models.DNSRequest, qname string, qtype uint16, vip s
 		CNECSWithUpstream: describeECS(ecsIP, ecsBits),
 	}
 	applyTransportFromRequest(req, t)
-	if cnDefault != nil {
-		if pub := mapper.PublicUnicastIP(realIP); pub != nil {
-			t.PublicIPForECS = "映射公网 " + pub.String() + "；国内/缓存 ECS 固定 " + cnDefault.String() + "（mapper.default_cn_ecs）"
-		} else {
-			t.PublicIPForECS = "无映射公网；国内/缓存 ECS 固定 " + cnDefault.String() + "（mapper.default_cn_ecs）"
-		}
-	} else if pub := mapper.PublicUnicastIP(realIP); pub != nil {
-		t.PublicIPForECS = pub.String()
-	} else {
-		t.PublicIPForECS = "（无公网单播地址；国内 ECS 见「发往国内上游时 EDNS」）"
-	}
+	t.PublicIPForECS = tracePublicIPForECS(realIP, ecsSourceIP, cnDefault, cnECSSource)
 	t.Steps = append(t.Steps,
 		"解析请求："+t.Question,
 		"客户端源地址（VIP）："+vip,
@@ -147,7 +169,15 @@ func buildTracePrelude(req *models.DNSRequest, qname string, qtype uint16, vip s
 		t.Steps = append(t.Steps, "客户端查询未携带 EDNS Client Subnet")
 	}
 	if cnDefault != nil {
-		t.Steps = append(t.Steps, "已配置 mapper.default_cn_ecs：国内上游与 ECS 缓存键均使用该地址（不采用映射公网 IP 作为 ECS）")
+		t.Steps = append(t.Steps, "已配置 mapper.default_cn_ecs：作为国内 ECS 保底（仅当客户端无公章网 EDNS 且无映射公网单播地址时使用）")
+	}
+	switch cnECSSource {
+	case "client_edns":
+		t.Steps = append(t.Steps, "本次国内上游 ECS 来源：客户端 EDNS Client Subnet（公章网）")
+	case "vip_mapped":
+		t.Steps = append(t.Steps, "本次国内上游 ECS 来源：VIP→realIP 映射公网地址")
+	case "default_cn":
+		t.Steps = append(t.Steps, "本次国内上游 ECS 来源：mapper.default_cn_ecs 保底")
 	}
 	t.Steps = append(t.Steps,
 		"缓存维度（ECS 子网键）："+subnetKey,

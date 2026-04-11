@@ -133,25 +133,37 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 		clientECS = ecs.EDNS0Subnet(req.Msg)
 	}
 	cnECSDefault := parseIP(cfg.Mapper.DefaultCNECS)
-	// ECS 缓存维度：若配置了 default_cn_ecs，始终用该地址做子网键（与发往国内上游的 ECS 一致）。
-	var subnetIP net.IP
-	if cnECSDefault != nil {
-		subnetIP = cnECSDefault
-	} else {
-		subnetIP = ecsSourceIP
-	}
-	effectiveSubnetECS := clientECS
-	if cnECSDefault != nil {
-		effectiveSubnetECS = ""
-	}
+	ecsIP, ecsBits, cnECSSource := cnUpstreamECSSelect(ecsSourceIP, clientECS, cnECSDefault)
 
-	ecsIP, ecsBits := cnUpstreamECS(ecsSourceIP, clientECS, cnECSDefault)
+	// ECS 缓存维度与 effectiveSubnetECS：与国内上游 ECS 优先级一致（客户端公章网 EDNS → 映射公网 → default_cn_ecs）。
+	var subnetIP net.IP
+	effectiveSubnetECS := ""
+	switch cnECSSource {
+	case "client_edns":
+		effectiveSubnetECS = clientECS
+		if ecsSourceIP != nil {
+			subnetIP = ecsSourceIP
+		} else if cnECSDefault != nil {
+			subnetIP = cnECSDefault
+		}
+	case "vip_mapped":
+		subnetIP = ecsSourceIP
+	case "default_cn":
+		if cnECSDefault != nil {
+			subnetIP = cnECSDefault
+		}
+	default:
+		subnetIP = ecsSourceIP
+		if subnetIP == nil {
+			subnetIP = cnECSDefault
+		}
+	}
 	sentParam := ecs.GoogleSubnetQueryParam(ecsIP, ecsBits)
 	mappedECS, _ := r.cache.GetGoogleECSMap(ctx, sentParam)
 	lookupSubnet := ecs.SubnetKeyForRead(mappedECS, sentParam, effectiveSubnetECS, subnetIP)
 	subnetKey := lookupSubnet
 
-	tr := buildTracePrelude(req, qname, qtype, req.ClientVIP, realIP, ecsSourceIP, clientECS, subnetKey, ecsIP, ecsBits, cnECSDefault)
+	tr := buildTracePrelude(req, qname, qtype, req.ClientVIP, realIP, ecsSourceIP, clientECS, subnetKey, ecsIP, ecsBits, cnECSDefault, cnECSSource)
 
 	// 6. ECS-scoped cache (lookup uses Google-echo mapping + sent subnet; store key may differ after upstream)
 	lookupECSKey := cache.ECSKey(qname, qtype, lookupSubnet)
@@ -332,16 +344,62 @@ func parseIP(s string) net.IP {
 	return net.ParseIP(s)
 }
 
-// cnUpstreamECS selects ECS sent to cn_dns. When default_cn_ecs is set, the configured
-// address is always used (IPv4 /24, IPv6 /48), ignoring VIP 映射公网 IP 与客户端 EDNS 子网。
-func cnUpstreamECS(ecsSourceIP net.IP, clientECS string, cnDefault net.IP) (ip net.IP, bits int) {
+// cnUpstreamECSSelect picks ECS for all cn_dns transports (UDP / DoH). Priority:
+//  1) Client EDNS subnet if anchor IP is public unicast (RFC7871-style)
+//  2) Else VIP→realIP mapped public unicast (ecsSourceIP)
+//  3) Else default_cn_ecs if configured (/24 v4 or /48 v6)
+//  4) Else same as ecsNetForQuery with no inputs (typically nil)
+//
+// Returned source is "client_edns" | "vip_mapped" | "default_cn" | "none" for trace text.
+func cnUpstreamECSSelect(ecsSourceIP net.IP, clientECS string, cnDefault net.IP) (ip net.IP, bits int, source string) {
+	if ip, bits, ok := clientPublicECSNet(clientECS); ok {
+		return ip, bits, "client_edns"
+	}
+	if ecsSourceIP != nil {
+		ip, bits := ecsNetForQuery(ecsSourceIP, "", nil)
+		if ip != nil && bits > 0 {
+			return ip, bits, "vip_mapped"
+		}
+	}
 	if cnDefault != nil {
 		if ip4 := cnDefault.To4(); ip4 != nil {
-			return ip4, 24
+			return ip4, 24, "default_cn"
 		}
-		return cnDefault.To16(), 48
+		return cnDefault.To16(), 48, "default_cn"
 	}
-	return ecsNetForQuery(ecsSourceIP, clientECS, nil)
+	ip, bits = ecsNetForQuery(nil, "", nil)
+	return ip, bits, "none"
+}
+
+// clientPublicECSNet returns ECS ip/bits when clientECS parses as CIDR and the address is public unicast.
+func clientPublicECSNet(clientECS string) (ip net.IP, bits int, ok bool) {
+	s := strings.TrimSpace(clientECS)
+	if s == "" {
+		return nil, 0, false
+	}
+	ipAddr, ipNet, err := net.ParseCIDR(s)
+	if err != nil || ipNet == nil {
+		return nil, 0, false
+	}
+	if mapper.PublicUnicastIP(ipAddr) == nil {
+		return nil, 0, false
+	}
+	ones, bitsTotal := ipNet.Mask.Size()
+	if bitsTotal == 32 {
+		ip4 := ipAddr.To4()
+		if ip4 == nil || ones <= 0 {
+			return nil, 0, false
+		}
+		return ip4, ones, true
+	}
+	if bitsTotal == 128 {
+		ip6 := ipAddr.To16()
+		if ip6 == nil || ones <= 0 {
+			return nil, 0, false
+		}
+		return ip6, ones, true
+	}
+	return nil, 0, false
 }
 
 // outUpstreamECS selects ECS for out_dns: default_out_ecs or default_cn_ecs 作为固定源时
