@@ -7,6 +7,7 @@
 | 源码 | [https://github.com/hk59775634/vpndns-server](https://github.com/hk59775634/vpndns-server) |
 | 预编译二进制 | [GitHub Releases](https://github.com/hk59775634/vpndns-server/releases)（`SHA256SUMS.txt`） |
 | 容器镜像 | [Docker Hub — hk59775634/vpndns-server](https://hub.docker.com/r/hk59775634/vpndns-server)（`linux/amd64`、`arm64`、`arm/v7`） |
+| Hub Overview 源文件 | 仓库内 [docs/DOCKERHUB-OVERVIEW.md](docs/DOCKERHUB-OVERVIEW.md)（可粘贴到 Hub 或使用 `scripts/dockerhub-update-overview.sh` 同步） |
 
 **版本标签：** 每个正式版同时推送 **`:vX.Y.Z`** 与 **`:latest`**；生产建议固定 **`image: …:v1.0.5`**。维护者发版：`docker login` 后 `VERSION=v1.x.x ./scripts/docker-buildx-push.sh`；二进制打包：`RELEASE_USE_DOCKER=1 ./scripts/release-build.sh v1.x.x`（需 Docker；本机 Go 1.22+ 也可直接跑该脚本）。
 

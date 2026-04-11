@@ -2,6 +2,8 @@
 
 源码仓库：**[https://github.com/hk59775634/vpndns-server](https://github.com/hk59775634/vpndns-server)**。生产与集成测试建议统一使用 **`/etc/vpndns/config.yaml`**（下文 §3、systemd 示例与此一致）。
 
+Docker Hub 仓库 **Overview** 正文源文件见 **[DOCKERHUB-OVERVIEW.md](./DOCKERHUB-OVERVIEW.md)**；可用 `DOCKERHUB_PASSWORD=… ./scripts/dockerhub-update-overview.sh` 推送到 Hub（需 `curl`/`jq`）。
+
 ## 1. 环境要求
 
 - Linux（推荐）或类 Unix

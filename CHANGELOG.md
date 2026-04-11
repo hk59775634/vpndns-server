@@ -4,7 +4,9 @@
 
 ## [未发布]
 
-（尚无条目。）
+### 文档
+
+- 新增 **`docs/DOCKERHUB-OVERVIEW.md`**：Docker Hub 页面用简介（GitHub 链接、`docker run` / Compose 部署要点）；**`scripts/dockerhub-update-overview.sh`** 可通过 API 同步至 Hub（需 `DOCKERHUB_PASSWORD`）。
 
 ## [1.0.5] — 2026-04-11
 
