@@ -29,6 +29,7 @@ out_dns:
       address: 8.8.8.8:53
       weight: 1
 mapper:
+    # 留空：不外呼映射 API，也不用本机公网探测写 vip:*（见 GetRealIP 行为）
     api_url: ""
     ttl_seconds: 300
     public_ip_probe_url: ""

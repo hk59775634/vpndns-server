@@ -22,7 +22,7 @@ docker pull hk59775634/vpndns-server:v1.0.5
   - **RFC 8484（Cloudflare 类）**：`POST /dns-query`，`application/dns-message`
   - **Google JSON**：`GET /resolve?name=&type=`，`application/dns-json`（与 [Google 公共 DNS JSON](https://developers.google.com/speed/public-dns/docs/doh/json) 形态兼容）
 - **管理**：Web UI + REST API（`listen.admin`）
-- **VIP 映射**：`mapper.api_url` 为空时，Redis 未命中可用本机公网出口（默认探测 `https://api.ipify.org`）
+- **VIP 映射**：`mapper.api_url` 非空时走 HTTP 查询；**留空时不再用本机公网探测填充 `vip:*` 映射**（仅 Redis 命中或解析 VIP 本身），避免误占 `default_cn_ecs` 保底路径
 - **GeoIP**：中国 CIDR；IPv4 **区间合并 + 二分查找**
 - **观测**：进程内统计、可选 Redis 持久化、Prometheus **`/metrics`**
 - **其它**：缓存预热、配置热加载（fsnotify）、UI 全量编辑

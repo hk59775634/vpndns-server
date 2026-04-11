@@ -19,7 +19,7 @@
 
 | 符号 | 含义 |
 |------|------|
-| `realIP` | `mapper.GetRealIP(ctx, ClientVIP)`，失败则 `ParseIP(ClientVIP)` |
+| `realIP` | `mapper.GetRealIP(ctx, ClientVIP)`，失败则 `ParseIP(ClientVIP)`。`mapper.api_url` **留空**时不外呼映射 API，也**不用**本机公网探测写 `vip:*`；未命中 Redis 时回退为解析 VIP 字面 IP。 |
 | `ecsSourceIP` | `mapper.PublicUnicastIP(realIP)`，仅公网单播用于上游 ECS |
 | `clientECS` | `req.ClientECS`，若空则从报文 `ecs.EDNS0Subnet(req.Msg)` 取首条 ECS |
 | `cnECSDefault` | 配置 `mapper.default_cn_ecs` 解析为 IP（**保底**，见下） |

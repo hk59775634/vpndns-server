@@ -111,8 +111,10 @@ func isPublicUnicastIP(ip net.IP) bool {
 	return true
 }
 
-// GetRealIP returns mapped real IP. If vip is already a public unicast IP, it is returned immediately (no Redis / mapper API / egress probe).
-// Otherwise: Redis cache, then HTTP mapper API or server's public egress IP when api_url is empty, then parsing vip as any IP.
+// GetRealIP returns mapped real IP. If vip is already a public unicast IP, it is returned immediately (no Redis / mapper API).
+// Otherwise: Redis cache, then HTTP mapper API when api_url is non-empty.
+// When api_url is empty, no VIP→realIP HTTP call and no server egress probe: probing wrote unrelated egress IPs into
+// vip:* keys and blocked resolver default_cn_ecs. Finally parses vip as an IP (e.g. CGNAT VIP) or errors if no mapping.
 func (m *Mapper) GetRealIP(ctx context.Context, vip string) (net.IP, error) {
 	vip = strings.TrimSpace(vip)
 	if vip == "" {
@@ -136,13 +138,6 @@ func (m *Mapper) GetRealIP(ctx context.Context, vip string) (net.IP, error) {
 	if apiURL != "" {
 		ip, err := m.fetchAPI(ctx, vip, apiURL)
 		if err == nil && ip != nil {
-			if m.rdb != nil {
-				_ = m.rdb.Set(ctx, VIPRedisKey(vip), ip.String(), ttl).Err()
-			}
-			return ip, nil
-		}
-	} else if m.pub != nil {
-		if ip := m.pub.get(ctx); ip != nil {
 			if m.rdb != nil {
 				_ = m.rdb.Set(ctx, VIPRedisKey(vip), ip.String(), ttl).Err()
 			}

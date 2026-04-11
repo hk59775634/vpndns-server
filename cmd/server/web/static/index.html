@@ -292,7 +292,7 @@
             <div class="ecs-flow" aria-label="ECS 数据流示意">
               <span class="step">客户端 VIP</span>
               <span class="arrow">→</span>
-              <span class="step">映射 API / 本机出口</span>
+              <span class="step">映射 API（或 Redis）</span>
               <span class="arrow">→</span>
               <span class="step">公网 IP（ECS 源）</span>
               <span class="arrow">→</span>
@@ -303,10 +303,10 @@
               <span class="step">DNS 应答</span>
             </div>
             <p class="hint" style="margin-top:12px">上图仅为逻辑示意；实际以配置与解析路径为准。缓存键形态：<code>dns:域名:类型:global</code> 或 <code>dns:域名:类型:ecs:子网</code>。</p>
-            <p class="hint">映射 API 留空时：Redis 未命中后使用<strong>本机公网出口 IP</strong>（由下方探测 URL 获取，默认 ipify）写入 Redis。</p>
-            <p class="hint"><strong>默认 ECS</strong>：填写「默认国内 ECS」后，国内上游与 ECS 维度缓存<strong>始终</strong>使用该地址（IPv4 /24、IPv6 /48），不再用 VIP 映射公网 IP 或客户端 EDNS 子网。未填「默认全球 ECS」时，海外上游在未带客户端 EDNS 子网时会<strong>回退</strong>到「默认国内 ECS」，而不会用映射公网 IP。</p>
+            <p class="hint">映射 API <strong>留空</strong>时：不再请求外呼映射，也<strong>不会</strong>用本机公网探测去写 <code>vip:*</code>（避免误占国内 ECS 的 <code>default_cn_ecs</code> 保底）；仅 Redis 命中或回退为解析 VIP 字面 IP。需要外呼时请填写 GET 接口（查询参数 <code>ip</code>）。下方「本机公网探测 URL」保留字段，当前<strong>不用于</strong>上述 VIP 回填。</p>
+            <p class="hint"><strong>默认 ECS</strong>：国内上游 ECS 优先级为——① 客户端公章网 EDNS 子网；② VIP→realIP 映射公网（Redis / API）；③ <code>mapper.default_cn_ecs</code> 保底。海外路径见配置说明。</p>
             <div class="grid2">
-              <label class="field" style="grid-column:1/-1"><span class="key">映射 API 地址（GET，查询参数 ip）</span><span class="cfg-path">mapper.api_url</span><input type="text" id="mapper-url" placeholder="留空则用本机公网 IP" /></label>
+              <label class="field" style="grid-column:1/-1"><span class="key">映射 API 地址（GET，查询参数 ip）</span><span class="cfg-path">mapper.api_url</span><input type="text" id="mapper-url" placeholder="留空=仅 Redis / 解析 VIP，不做 API 与本机公网探测映射" /></label>
               <label class="field" style="grid-column:1/-1"><span class="key">本机公网 IP 探测 URL</span><span class="cfg-path">mapper.public_ip_probe_url</span><input type="text" id="mapper-probe-url" placeholder="https://api.ipify.org" /></label>
               <label class="field"><span class="key">映射缓存 TTL（秒）</span><span class="cfg-path">mapper.ttl_seconds</span><input type="number" id="mapper-ttl" min="1" step="1" /></label>
               <label class="field" style="grid-column:1/-1"><span class="key">默认国内 ECS（公网 IPv4/IPv6）</span><span class="cfg-path">mapper.default_cn_ecs</span><input type="text" id="mapper-cn-ecs" placeholder="国内上游 ECS 保底：无公章网客户端子网且无 VIP→realIP 映射公网时使用" /></label>

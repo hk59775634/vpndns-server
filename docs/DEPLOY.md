@@ -35,7 +35,7 @@ sudo chmod 600 /etc/vpndns/config.yaml
 - `redis.*`：地址与密码
 - `listen.*`：DNS / DoH / 管理端口
 - `cn_dns` / `out_dns`：至少各一条上游
-- `mapper.api_url`：可留空，此时未命中 Redis 时使用本机公网 IP（见 `mapper.public_ip_probe_url`）
+- `mapper.api_url`：可留空。**留空时**不调用映射 API，也**不会**用本机公网探测去写 VIP→realIP（仅 Redis `vip:*` 命中或回退为解析 VIP 字面 IP）；需要外呼映射时请填写 **GET** API（查询参数 `ip`）。`mapper.public_ip_probe_url` 仍可在配置中存在，但不再用于上述 VIP 回填。
 - DoH TLS：`listen.doh_tls: true` 且任选其一  
   - `listen.tls_cert` + `listen.tls_key`（文件路径）  
   - `listen.tls_cert_pem` + `listen.tls_key_pem`（YAML 多行 PEM）

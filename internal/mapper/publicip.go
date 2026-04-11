@@ -12,7 +12,8 @@ import (
 
 const defaultPublicIPURL = "https://api.ipify.org"
 
-// publicIPCache holds server egress IP for VIP fallback when mapper API URL is empty.
+// publicIPCache holds server egress IP (probe URL). GetRealIP no longer uses it when api_url is empty
+// so VIP mapping is not filled with unrelated egress IPs; kept for Reload wiring and possible future use.
 type publicIPCache struct {
 	mu      sync.RWMutex
 	ip      net.IP

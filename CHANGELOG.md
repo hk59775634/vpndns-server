@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### Mapper
+
+- **`mapper.api_url` 留空**：`GetRealIP` 不再在 Redis 未命中时用 **本机公网探测**（`public_ip_probe_url`）填充 `vip:*` 映射，避免将无关出口 IP 当作用户 realIP，导致国内 ECS 优先走「映射公网」而无法落到 **`mapper.default_cn_ecs`**。留空时仍为：公网字面 VIP 直返 → Redis `vip:*` → 否则解析 VIP 为 IP。
+
 ### 文档
 
 - 新增 **`docs/DOCKERHUB-OVERVIEW.md`**：Docker Hub 页面用简介（GitHub 链接、`docker run` / Compose 部署要点）；**`scripts/dockerhub-update-overview.sh`** 可通过 API 同步至 Hub（需 `DOCKERHUB_PASSWORD`）。

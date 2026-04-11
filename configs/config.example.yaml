@@ -47,6 +47,7 @@ out_dns:
     #   address: ""
     #   weight: 1
 mapper:
+    # api_url 留空：不请求映射 API，也不用本机公网探测写入 vip:*（避免误占 ECS default_cn_ecs 路径）；仅 Redis 命中或解析 VIP 字符串。
     api_url: ""
     ttl_seconds: 300
     public_ip_probe_url: ""
