@@ -9,12 +9,16 @@
 # 用法：
 #   DOCKERHUB_PASSWORD=*** ./scripts/dockerhub-update-overview.sh
 #   DOCKERHUB_OVERVIEW_FILE=docs/custom.md ./scripts/dockerhub-update-overview.sh
+# 可选：DOCKERHUB_SHORT_DESCRIPTION="…"（≤100 字符，展示在 Hub 标题下方简介；默认内置英文一句）
 set -euo pipefail
 
 USER="${DOCKERHUB_USERNAME:-hk59775634}"
 REPO="${DOCKERHUB_REPO:-vpndns-server}"
 PASS="${DOCKERHUB_PASSWORD:-${DOCKER_PASSWORD:-}}"
 FILE="${DOCKERHUB_OVERVIEW_FILE:-docs/DOCKERHUB-OVERVIEW.md}"
+# Hub 短描述上限约 100 字符；默认 ASCII 一句（含 GitHub 短链）
+SHORT_DEFAULT='Smart DNS (dual upstream, DoH, Redis, Web UI). Source: github.com/hk59775634/vpndns-server — see Overview for docker compose / docker run.'
+SHORT_DESC="${DOCKERHUB_SHORT_DESCRIPTION:-$SHORT_DEFAULT}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
@@ -45,7 +49,8 @@ fi
 
 TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
-jq -Rs '{full_description: .}' <"$FILE" >"$TMP"
+jq -n --arg desc "$SHORT_DESC" --rawfile full "$FILE" \
+	'{description: ($desc | .[0:100]), full_description: $full}' >"$TMP"
 
 HTTP=$(curl -sS -o /dev/null -w '%{http_code}' -X PATCH \
 	-H "Authorization: JWT ${TOKEN}" \
