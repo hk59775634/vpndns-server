@@ -4,13 +4,7 @@
 
 ## [未发布]
 
-### Mapper
-
-- **`mapper.api_url` 留空**：`GetRealIP` 不再在 Redis 未命中时用 **本机公网探测**（`public_ip_probe_url`）填充 `vip:*` 映射，避免将无关出口 IP 当作用户 realIP，导致国内 ECS 优先走「映射公网」而无法落到 **`mapper.default_cn_ecs`**。留空时仍为：公网字面 VIP 直返 → Redis `vip:*` → 否则解析 VIP 为 IP。
-
-### 文档
-
-- 新增 **`docs/DOCKERHUB-OVERVIEW.md`**：Docker Hub 页面用简介（GitHub 链接、`docker run` / Compose 部署要点）；**`scripts/dockerhub-update-overview.sh`** 可通过 API 同步至 Hub（需 `DOCKERHUB_PASSWORD`）。
+（尚无条目。）
 
 ## [1.0.5] — 2026-04-11
 
@@ -18,6 +12,15 @@
 
 - **国内上游 ECS 优先级**（UDP、DoH RFC8484、DoH `json_get` 一致）：**1）** 客户端 EDNS 子网锚点为公网单播时使用该子网；**2）** 否则使用 VIP→realIP 映射公网地址（v4 `/24`、v6 `/48`）；**3）** 否则使用 **`mapper.default_cn_ecs`** 保底；**4）** 再否则与原先无默认时行为一致。`default_cn_ecs` 不再覆盖客户端公章网子网。
 - 查询日志：`mapper.default_cn_ecs` 说明改为「保底」；按实际来源追加「本次国内上游 ECS 来源：…」步骤。
+
+### Mapper
+
+- **`mapper.api_url` 留空**：`GetRealIP` 不再在 Redis 未命中时用 **本机公网探测**（`public_ip_probe_url`）填充 **`vip:*`** 映射，避免将无关出口 IP 当作用户 realIP，导致国内 ECS 长期走「映射公网」而无法落到 **`mapper.default_cn_ecs`**。留空时仍为：公网字面 VIP 直返 → Redis `vip:*` → 否则解析 VIP 为 IP。
+
+### 文档与脚本
+
+- 新增 **`docs/DOCKERHUB-OVERVIEW.md`** 与 **`scripts/dockerhub-update-overview.sh`**（可同步 Hub Overview 与短描述）。
+- **`docs/resolve-query-logic.md`**、`README`、`DEPLOY`、控制台 Mapper 页：与上述 `api_url` 留空行为一致。
 
 ### 文档与镜像
 
