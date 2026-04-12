@@ -136,14 +136,6 @@ func qTypeName(qt uint16) string {
 	return fmt.Sprintf("TYPE%d", qt)
 }
 
-func questionSummaryLine(req *models.DNSRequest) string {
-	if req == nil || req.Msg == nil || len(req.Msg.Question) == 0 {
-		return "—"
-	}
-	q := req.Msg.Question[0]
-	return qTypeName(q.Qtype) + " " + q.Name
-}
-
 // buildTracePrelude fills common routing context for admin query logs.
 // cnECSSource is "client_edns" | "vip_mapped" | "default_cn" | "none" from cnUpstreamECSSelect.
 func buildTracePrelude(req *models.DNSRequest, qname string, qtype uint16, vip string, realIP, ecsSourceIP net.IP, clientEDNS, subnetKey string, ecsIP net.IP, ecsBits int, cnDefault net.IP, cnECSSource string) *models.ResolveTrace {
@@ -182,6 +174,35 @@ func buildTracePrelude(req *models.DNSRequest, qname string, qtype uint16, vip s
 	t.Steps = append(t.Steps,
 		"缓存维度（ECS 子网键）："+subnetKey,
 		"发往国内上游时 EDNS Client Subnet："+t.CNECSWithUpstream,
+	)
+	return t
+}
+
+// buildTraceDirectOut builds trace for the no-client-ECS path (out_dns only, no cn_dns).
+func buildTraceDirectOut(req *models.DNSRequest, qname string, qtype uint16, vip string, realIP net.IP, subnetKey string, outEcsIP net.IP, outEcsBits int) *models.ResolveTrace {
+	t := &models.ResolveTrace{
+		VIP:                 vip,
+		RealIPMapped:        ipString(realIP),
+		Question:            qTypeName(qtype) + " " + qname,
+		ClientEDNS:          "",
+		EffectiveSubnet:     subnetKey,
+		CNECSWithUpstream:   "（未使用国内上游）",
+		OUTECSWithUpstream:  describeECS(outEcsIP, outEcsBits),
+		IPClassification:    "直连海外（无客户端 ECS）",
+	}
+	applyTransportFromRequest(req, t)
+	pubStr := "（无）"
+	if pub := mapper.PublicUnicastIP(realIP); pub != nil {
+		pubStr = pub.String()
+	}
+	t.PublicIPForECS = "直连海外模式：不查国内上游；用于海外 ECS 的映射公网：" + pubStr
+	t.Steps = append(t.Steps,
+		"解析请求："+t.Question,
+		"模式：请求未携带 ClientECS 且无 EDNS0 CLIENT-SUBNET，跳过国内上游与 GeoIP 分流，仅通过 out_dns 解析",
+		"客户端源地址（VIP）："+vip,
+		"映射得到的 IP（含私网回退）："+t.RealIPMapped,
+		"缓存维度：全局键 dns:…:global（不使用 ECS 子网缓存键）",
+		"发往海外上游时 EDNS Client Subnet："+t.OUTECSWithUpstream,
 	)
 	return t
 }

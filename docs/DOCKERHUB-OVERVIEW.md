@@ -10,7 +10,7 @@
 | **Release 与二进制** | [https://github.com/hk59775634/vpndns-server/releases](https://github.com/hk59775634/vpndns-server/releases) |
 | **部署文档** | 仓库内 [docs/DEPLOY.md](https://github.com/hk59775634/vpndns-server/blob/main/docs/DEPLOY.md) |
 
-**镜像标签**：每个正式版推送 **`:vX.Y.Z`** 与 **`:latest`**。生产环境请固定版本号，例如 **`hk59775634/vpndns-server:v1.0.5`**，勿仅依赖 `:latest`。
+**镜像标签**：每个正式版推送 **`:vX.Y.Z`** 与 **`:latest`**。生产环境请固定版本号，例如 **`hk59775634/vpndns-server:v1.0.6`**，勿仅依赖 `:latest`。
 
 **平台**：`linux/amd64`、`linux/arm64`、`linux/arm/v7`。
 
@@ -21,7 +21,7 @@
 ### 1. 仅拉取镜像（自行编排）
 
 ```bash
-docker pull hk59775634/vpndns-server:v1.0.5
+docker pull hk59775634/vpndns-server:v1.0.6
 ```
 
 容器内需挂载 **配置文件**（YAML），并保证进程能访问 **Redis**（与同 compose 中的 `redis` 服务或外部 Redis）。
@@ -32,7 +32,7 @@ docker pull hk59775634/vpndns-server:v1.0.5
 docker run -d --name vpndns --restart unless-stopped \
   -p 5353:53/udp -p 5353:53/tcp -p 8053:8053 -p 8080:8080 \
   -v /path/to/your/config.yaml:/etc/vpndns/config.yaml:ro \
-  hk59775634/vpndns-server:v1.0.5
+  hk59775634/vpndns-server:v1.0.6
 ```
 
 配置模板可从 GitHub 复制：[configs/config.example.yaml](https://github.com/hk59775634/vpndns-server/blob/main/configs/config.example.yaml)。生产建议路径 **`/etc/vpndns/config.yaml`**，详见 DEPLOY 文档。
@@ -65,7 +65,7 @@ docker compose up -d
 在已 **`docker login`** 的机器上，于源码根目录执行（将版本号替换为实际发版号）：
 
 ```bash
-VERSION=v1.0.5 ./scripts/docker-buildx-push.sh
+VERSION=v1.0.6 ./scripts/docker-buildx-push.sh
 ```
 
 脚本会同时推送 **`:vX.Y.Z`** 与 **`:latest`**。详见仓库 **`scripts/docker-buildx-push.sh`** 头部说明。

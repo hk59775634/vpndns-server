@@ -4,9 +4,28 @@
 
 ## [未发布]
 
+## [1.0.6] — 2026-04-12
+
+### 解析 / 反向 DNS
+
+- **跳过 `in-addr.arpa` / `ip6.arpa`**：此类查询 **不解析**（固定 **REFUSED**）、**不写** Redis/L1、**不产生**查询日志或 `PushLog`/统计行；在 DNS/DoH 入口与 `Resolver` 内均短路。
+
+### 解析 / `disable_ipv6`
+
+- 开启 **`resolver.disable_ipv6`** 时，**AAAA** 查询 **不解析**（NOERROR 空应答）、**不写**缓存、**不产生**查询日志/统计；DNS/DoH/JSON 入口在计数与 `Resolve` 之前短路；`Resolver` 返回的应答带 **`SkipQueryLog`**。
+
+### 解析 / 无 ECS 直连海外
+
+- **分流开关**：若请求中 **既无** `ClientECS` **也无** DNS 报文里的 **EDNS0 CLIENT-SUBNET**，则 **不访问国内上游**，不做 GeoIP 智能分流；经白名单与 **全局缓存** 后 **仅查询 `out_dns`**。携带任一 ECS 来源时仍走原有智能解析（国内 → 分类 → 海外等）。
+
 ### 解析 / 海外上游 ECS
 
-- **`out_dns`（海外）**：不再将 **`mapper.default_cn_ecs`** 作为发往海外解析器的 EDNS Client Subnet。海外路径为：客户端**公章网** EDNS 子网 → **`default_out_ecs`**（若配置）→ VIP 映射公网 `/24`·`/48` → 否则**不附加 ECS**。
+- **`out_dns`（海外）**：不再将 **`mapper.default_cn_ecs`** 作为发往海外解析器的 EDNS Client Subnet。若配置了 **`mapper.default_out_ecs`**，海外上游 **固定** 使用该地址的 `/24`·`/48` ECS（忽略客户端 EDNS 与 VIP 映射公网）。未配置时：客户端**公章网** EDNS 子网 → VIP 映射公网 `/24`·`/48` → 否则**不附加 ECS**。
+- **海外空应答 / 失败换节点**：`out_dns` 配置 **多个上游** 时，单次 `QueryOUT` 内 **每个节点最多 2 次**请求（应对超时等瞬时失败），再换下一节点；总次数上限 **2 × 节点数**（有序回退按 YAML 顺序，否则先打乱节点顺序）。仅 **一个** 海外上游时仍按 **`upstream_retries`**。NOERROR 空 A/AAAA 仍 **不写入** 全局 Redis/L1 缓存。
+
+### 文档与镜像
+
+- `README.md`、`docs/DEPLOY.md`、`docker-compose.yml`、脚本示例：示例镜像版本 **v1.0.6**。
 
 ## [1.0.5] — 2026-04-11
 

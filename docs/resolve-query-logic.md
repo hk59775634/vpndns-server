@@ -2,6 +2,8 @@
 
 本文描述 `Resolver.Resolve` → `resolveCore` 的主路径，以及与 **ECS、Redis/L1 缓存、国内/海外上游、白名单** 的交互。代码位置以仓库根为基准。
 
+**是否走「智能解析」**：若 `req.ClientECS` 与报文内 `ecs.EDNS0Subnet(req.Msg)` **均为空**，则 **不进入**下文第 2–6 节（国内上游、ECS 子网缓存、GeoIP 分流），直接进入 **`resolveDirectOverseasOnly`**：白名单 → **仅** `GlobalKey` 的 L1/Redis → **`out_dns`**（海外 ECS 仍可为 `default_out_ecs` / VIP 映射公网）。任一非空则走完整智能路径。
+
 ---
 
 ## 1. 入口与前置
@@ -10,12 +12,14 @@
 |------|------|------|
 | 1.1 | 取当前配置 `cfg := cfgStore.Get()` | `resolver.go` `Resolve` |
 | 1.2 | 校验 `req.Msg` 与 Question 非空 | `Resolve` |
-| 1.3 | 若配置 `disable_ipv6` 且 QTYPE=AAAA：直接构造空应答（不访问上游），随后 `stripAAAARecords` | `Resolve`、`ipv6DisabledAAAAResponse` |
+| 1.3 | 若配置 `disable_ipv6` 且 QTYPE=AAAA：直接 **NOERROR 空应答**（不访问上游、**不写**缓存、**不记**查询日志；DNS/DoH 入口已短路）；其它 QTYPE 在 `Resolve` 末尾对应答 **剥除 AAAA 记录**（`stripAAAARecords`） | `models.NewIPv6DisabledAAAAResponse`、`dns`/`doh` 前置、`resolver.Resolve` |
 | 1.4 | 过载：`guard.AllowGlobal()` 为 false 则 `ErrOverload` | `resolveCore` |
+| 1.5 | 若 **无客户端 ECS**（见文首）：`resolveDirectOverseasOnly`，不访问 `cn_dns` | `resolver.go` `clientCarriesECS` |
+| 1.6 | 若 QNAME 属于 **`*.in-addr.arpa`** 或 **`*.ip6.arpa`**：固定 **REFUSED**，不访问上游、不写缓存、不产生查询日志（DNS/DoH 入口短路；`Resolver` 内亦短路） | `models.IsReverseLookupQName` |
 
 ---
 
-## 2. 客户端与 ECS 上下文（resolveCore 开头）
+## 2. 客户端与 ECS 上下文（resolveCore 开头，仅智能解析路径）
 
 | 符号 | 含义 |
 |------|------|
@@ -85,9 +89,9 @@
 | 7.1 | `wl.Allowed(qname)` 为 false：`blocked(...)`（NXDOMAIN 或 localhost，依 `non_whitelist_action`） |
 | 7.2 | `gkey := cache.GlobalKey(qname, qtype)` → `dns:{domain}:{type}:global` |
 | 7.3 | **L1 / Redis** 按 `gkey` 查询，命中则 `from_cache=l1_global` / `redis_global` |
-| 7.4 | `outEcsIP, outEcsBits := outUpstreamECS(...)`：客户端**公章网** EDNS 子网 → **`default_out_ecs`**（若配置）→ VIP 映射公网 `/24`·`/48` → 否则**不写 ECS**；**从不**使用 `default_cn_ecs` |
-| 7.5 | `queryOUTCoalesced` → `pool.QueryOUT` |
-| 7.6 | `setBothCaches(ctx, gkey, outResp, ttl)` — **仅全局键**，与 ECS 子网键无关 |
+| 7.4 | `outEcsIP, outEcsBits := outUpstreamECS(...)`：若配置了 **`default_out_ecs`**，海外 **固定** 使用该地址的 `/24`·`/48`；否则为客户端**公章网** EDNS 子网 → VIP 映射公网 `/24`·`/48` → 否则**不写 ECS**；**从不**使用 `default_cn_ecs` |
+| 7.5 | `queryOUTCoalesced` → `pool.QueryOUT`：多节点时 **每节点最多 2 次**再换下一节点（上限 **2×节点数**）；有序模式按 YAML 顺序，否则先打乱节点顺序；单节点仍受 `upstream_retries` 限制 |
+| 7.6 | 若最终应答对 A/AAAA **非空**（或问题类型非 A/AAAA）：`setBothCaches(ctx, gkey, outResp, ttl)` — **仅全局键**；若仍为 NOERROR 空 A/AAAA，**不写**全局缓存 |
 | 7.7 | 返回 `WentOUT: true` |
 
 ---

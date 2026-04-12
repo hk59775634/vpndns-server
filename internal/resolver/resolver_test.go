@@ -3,6 +3,10 @@ package resolver
 import (
 	"net"
 	"testing"
+
+	"github.com/miekg/dns"
+
+	"github.com/vpndns/cdn/internal/models"
 )
 
 func TestCnUpstreamECSSelect_usesDefaultWhenNoPublicClientOrMapped(t *testing.T) {
@@ -72,5 +76,52 @@ func TestOutUpstreamECS_clientPublicEDNSOverMapped(t *testing.T) {
 	ip, bits := outUpstreamECS(pub, "192.0.2.0/24", nil)
 	if bits != 24 || !ip.Equal(net.ParseIP("192.0.2.0")) {
 		t.Fatalf("expected client public ECS first, got %v/%d", ip, bits)
+	}
+}
+
+func TestOutUpstreamECS_outDefaultIgnoresClientEDNS(t *testing.T) {
+	out := net.ParseIP("8.8.8.8")
+	pub := net.ParseIP("103.6.4.0")
+	ip, bits := outUpstreamECS(pub, "192.0.2.0/24", out)
+	if bits != 24 || !ip.Equal(out) {
+		t.Fatalf("expected fixed default_out_ecs, got %v/%d", ip, bits)
+	}
+}
+
+func TestClientCarriesECS_falseWithoutOption(t *testing.T) {
+	m := new(dns.Msg)
+	m.SetQuestion("example.com.", dns.TypeA)
+	req := &models.DNSRequest{Msg: m}
+	if clientCarriesECS(req) {
+		t.Fatal("expected no ECS")
+	}
+}
+
+func TestClientCarriesECS_trueFromClientECSField(t *testing.T) {
+	m := new(dns.Msg)
+	m.SetQuestion("example.com.", dns.TypeA)
+	req := &models.DNSRequest{Msg: m, ClientECS: "203.0.113.0/24"}
+	if !clientCarriesECS(req) {
+		t.Fatal("expected ECS from ClientECS")
+	}
+}
+
+func TestClientCarriesECS_trueFromEDNS0(t *testing.T) {
+	m := new(dns.Msg)
+	m.SetQuestion("example.com.", dns.TypeA)
+	opt := new(dns.OPT)
+	opt.Hdr.Name = "."
+	opt.Hdr.Rrtype = dns.TypeOPT
+	opt.SetUDPSize(1232)
+	e := new(dns.EDNS0_SUBNET)
+	e.Code = dns.EDNS0SUBNET
+	e.Family = 1
+	e.SourceNetmask = 24
+	e.Address = net.IPv4(8, 8, 8, 0).To4()
+	opt.Option = append(opt.Option, e)
+	m.Extra = append(m.Extra, opt)
+	req := &models.DNSRequest{Msg: m}
+	if !clientCarriesECS(req) {
+		t.Fatal("expected ECS from EDNS0")
 	}
 }

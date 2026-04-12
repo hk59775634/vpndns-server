@@ -53,8 +53,11 @@ func (r *Resolver) Resolve(ctx context.Context, req *models.DNSRequest) (*models
 	if req == nil || req.Msg == nil || len(req.Msg.Question) == 0 {
 		return nil, fmt.Errorf("bad request")
 	}
+	if models.IsReverseLookupQName(req.QuestionName()) {
+		return models.NewReverseLookupSkippedResponse(req), nil
+	}
 	if cfg.Resolver.DisableIPv6 && req.QuestionType() == dns.TypeAAAA {
-		return ipv6DisabledAAAAResponse(req), nil
+		return models.NewIPv6DisabledAAAAResponse(req), nil
 	}
 	resp, err := r.resolveCore(ctx, req, cfg)
 	if err != nil || resp == nil || resp.Msg == nil || !cfg.Resolver.DisableIPv6 {
@@ -65,24 +68,6 @@ func (r *Resolver) Resolve(ctx context.Context, req *models.DNSRequest) (*models
 		resp.MinTTL = models.MinAnswerTTL(resp.Msg, resp.MinTTL)
 	}
 	return resp, err
-}
-
-func ipv6DisabledAAAAResponse(req *models.DNSRequest) *models.DNSResponse {
-	m := new(dns.Msg)
-	m.SetReply(req.Msg)
-	m.Rcode = dns.RcodeSuccess
-	m.Authoritative = false
-	m.Answer = nil
-	qline := questionSummaryLine(req)
-	return &models.DNSResponse{
-		Msg: m, MinTTL: 60,
-		Log: models.ResolveLog{
-			Trace: &models.ResolveTrace{
-				Question: qline,
-				Steps:    []string{"已配置 disable_ipv6，AAAA 直接返回无数据（未访问上游）"},
-			},
-		},
-	}
 }
 
 func stripAAAARecords(m *dns.Msg) *dns.Msg {
@@ -120,6 +105,12 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 
 	qname := req.QuestionName()
 	qtype := req.QuestionType()
+
+	// No ClientECS and no EDNS0 CLIENT-SUBNET in the wire query → skip CN / GeoIP smart path;
+	// whitelist + global cache + out_dns only (see resolveDirectOverseasOnly).
+	if !clientCarriesECS(req) {
+		return r.resolveDirectOverseasOnly(ctx, req, cfg, qname, qtype)
+	}
 
 	realIP, err := r.mapper.GetRealIP(ctx, req.ClientVIP)
 	if err != nil {
@@ -285,7 +276,80 @@ func (r *Resolver) resolveCore(ctx context.Context, req *models.DNSRequest, cfg 
 	}
 	annotateOUTTrace(tr, outResp, outEcsIP, outEcsBits)
 	ttl := effectiveTTL(outResp, cfg.Resolver.MaxCacheTTLSeconds)
-	r.setBothCaches(ctx, gkey, outResp, ttl)
+	if !outUpstreamAnswerEmptyNoData(outResp, qtype) {
+		r.setBothCaches(ctx, gkey, outResp, ttl)
+	} else if tr != nil {
+		tr.Steps = append(tr.Steps, "海外上游对 A/AAAA 仍无地址记录（NOERROR 空应答），不写入全局缓存，避免长期命中导致解析失败")
+	}
+	out := outResp.Msg.Copy()
+	out.SetReply(req.Msg)
+	return &models.DNSResponse{
+		Msg: out, MinTTL: uint32(ttl),
+		Log: models.ResolveLog{WentOUT: true, RealIP: ipString(realIP), ClientSubnet: subnetKey, Trace: tr},
+	}, nil
+}
+
+// clientCarriesECS is true when the client supplied ECS for smart resolution:
+// non-empty ClientECS (e.g. from transport) or an EDNS0 CLIENT-SUBNET option in the query.
+func clientCarriesECS(req *models.DNSRequest) bool {
+	if req == nil {
+		return false
+	}
+	if strings.TrimSpace(req.ClientECS) != "" {
+		return true
+	}
+	if req.Msg != nil && strings.TrimSpace(ecs.EDNS0Subnet(req.Msg)) != "" {
+		return true
+	}
+	return false
+}
+
+// resolveDirectOverseasOnly skips cn_dns and GeoIP split: whitelist, global cache, out_dns only.
+// Upstream ECS for OUT still follows default_out_ecs / VIP-mapped public (client ECS string is empty).
+func (r *Resolver) resolveDirectOverseasOnly(ctx context.Context, req *models.DNSRequest, cfg *config.Config, qname string, qtype uint16) (*models.DNSResponse, error) {
+	realIP, err := r.mapper.GetRealIP(ctx, req.ClientVIP)
+	if err != nil {
+		realIP = net.ParseIP(req.ClientVIP)
+	}
+	ecsSourceIP := mapper.PublicUnicastIP(realIP)
+	outECSDefault := parseIP(cfg.Mapper.DefaultOUTECS)
+	outEcsIP, outEcsBits := outUpstreamECS(ecsSourceIP, "", outECSDefault)
+	subnetKey := "global"
+	tr := buildTraceDirectOut(req, qname, qtype, req.ClientVIP, realIP, subnetKey, outEcsIP, outEcsBits)
+
+	if !r.wl.Allowed(qname) {
+		return blocked(req.Msg, cfg.Resolver.NonWhitelistAction, realIP, subnetKey, tr), nil
+	}
+
+	gkey := cache.GlobalKey(qname, qtype)
+	if resp, ok := r.l1HitGlobal(gkey, req, realIP, subnetKey); ok {
+		tr.FromCache = "l1_global"
+		tr.Steps = append(tr.Steps, "命中进程内 L1 缓存（全局键），未访问上游")
+		resp.Log.Trace = tr
+		return resp, nil
+	}
+	if resp, ok := r.cache.Get(ctx, gkey); ok && resp != nil && resp.Msg != nil {
+		tr.FromCache = "redis_global"
+		tr.Steps = append(tr.Steps, "命中 Redis 缓存（全局键），未访问上游")
+		out := resp.Msg.Copy()
+		out.SetReply(req.Msg)
+		return &models.DNSResponse{
+			Msg: out, MinTTL: resp.MinTTL,
+			Log: models.ResolveLog{Cached: true, RealIP: ipString(realIP), ClientSubnet: subnetKey, Trace: tr},
+		}, nil
+	}
+
+	outResp, err := r.queryOUTCoalesced(ctx, cfg, req, outEcsIP, outEcsBits, gkey)
+	if err != nil {
+		return nil, wrapResolveErr(tr, err)
+	}
+	annotateOUTTrace(tr, outResp, outEcsIP, outEcsBits)
+	ttl := effectiveTTL(outResp, cfg.Resolver.MaxCacheTTLSeconds)
+	if !outUpstreamAnswerEmptyNoData(outResp, qtype) {
+		r.setBothCaches(ctx, gkey, outResp, ttl)
+	} else if tr != nil {
+		tr.Steps = append(tr.Steps, "海外上游对 A/AAAA 仍无地址记录（NOERROR 空应答），不写入全局缓存，避免长期命中导致解析失败")
+	}
 	out := outResp.Msg.Copy()
 	out.SetReply(req.Msg)
 	return &models.DNSResponse{
@@ -404,24 +468,39 @@ func clientPublicECSNet(clientECS string) (ip net.IP, bits int, ok bool) {
 
 // outUpstreamECS selects ECS for out_dns. Never uses default_cn_ecs: overseas resolvers must not
 // receive a fixed CN subnet as the client's location hint.
-// Priority: 1) Client EDNS subnet if anchor is public unicast (same rule as cnUpstreamECSSelect).
-// 2) Else default_out_ecs if set (/24 v4 or /48 v6).
-// 3) Else VIP→realIP mapped public unicast (/24 or /48).
-// 4) Else omit ECS (nil, 0).
+// When default_out_ecs is set, out_dns always uses that subnet (/24 v4 or /48 v6), ignoring client
+// EDNS and VIP→realIP mapping so overseas ECS is fixed.
+// Otherwise: 1) Client EDNS subnet if anchor is public unicast; 2) VIP→realIP mapped public
+// unicast (/24 or /48); 3) Else omit ECS (nil, 0).
 func outUpstreamECS(ecsSourceIP net.IP, clientECS string, outDefault net.IP) (ip net.IP, bits int) {
-	if ip, bits, ok := clientPublicECSNet(clientECS); ok {
-		return ip, bits
-	}
 	if outDefault != nil {
 		if ip4 := outDefault.To4(); ip4 != nil {
 			return ip4, 24
 		}
 		return outDefault.To16(), 48
 	}
+	if ip, bits, ok := clientPublicECSNet(clientECS); ok {
+		return ip, bits
+	}
 	if ecsSourceIP != nil {
 		return ecsNetForQuery(ecsSourceIP, "", nil)
 	}
 	return nil, 0
+}
+
+// outUpstreamAnswerEmptyNoData is true for A/AAAA when upstream returned NOERROR but no A/AAAA
+// in Answer or Extra (e.g. ECS-related empty). NXDOMAIN and other rcodes are not treated as empty.
+func outUpstreamAnswerEmptyNoData(resp *models.DNSResponse, qtype uint16) bool {
+	if resp == nil || resp.Msg == nil {
+		return true
+	}
+	if qtype != dns.TypeA && qtype != dns.TypeAAAA {
+		return false
+	}
+	if resp.Msg.Rcode != dns.RcodeSuccess {
+		return false
+	}
+	return len(models.ExtractIPs(resp.Msg)) == 0
 }
 
 // ecsNetForQuery builds EDNS0 subnet for upstreams: client ECS if present, else mapped real IP, else fallback (e.g. configured default public IP).

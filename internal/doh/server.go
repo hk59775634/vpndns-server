@@ -104,11 +104,43 @@ func (s *Server) Handler() http.Handler {
 			http.Error(w, "no question", http.StatusBadRequest)
 			return
 		}
+		wireName := msg.Question[0].Name
+		if models.IsReverseLookupQName(wireName) {
+			m := new(dns.Msg)
+			m.SetReply(msg)
+			m.Rcode = dns.RcodeRefused
+			m.Authoritative = false
+			m.RecursionAvailable = true
+			packR, perr := m.Pack()
+			if perr != nil {
+				http.Error(w, "pack error", http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/dns-message")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(packR)
+			return
+		}
+		if cfg != nil && cfg.Resolver.DisableIPv6 && msg.Question[0].Qtype == dns.TypeAAAA {
+			m := new(dns.Msg)
+			m.SetReply(msg)
+			m.Rcode = dns.RcodeSuccess
+			m.Authoritative = false
+			m.Answer = nil
+			packR, perr := m.Pack()
+			if perr != nil {
+				http.Error(w, "pack error", http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/dns-message")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(packR)
+			return
+		}
 		if s.st != nil {
 			s.st.RecordDNSQuery()
 		}
 
-		wireName := msg.Question[0].Name
 		qt := msg.Question[0].Qtype
 		fullURL := HTTPRequestFullURL(r)
 		wireCopy := append([]byte(nil), wire...)
@@ -172,7 +204,9 @@ func (s *Server) Handler() http.Handler {
 		w.Header().Set("Content-Type", "application/dns-message")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(pack)
-		s.emit(querylog.FromResolve(wireName, vip, qt, resp, lat))
+		if !resp.SkipQueryLog {
+			s.emit(querylog.FromResolve(wireName, vip, qt, resp, lat))
+		}
 	})
 }
 

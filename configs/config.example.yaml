@@ -53,7 +53,7 @@ mapper:
     public_ip_probe_url: ""
     # default_cn_ecs: 国内上游 ECS 保底（仅当客户端无公章网 EDNS 子网且无 VIP→realIP 映射公网时使用）。有客户端公章网子网或映射公网时优先它们。
     default_cn_ecs: ""
-    # default_out_ecs: 海外 out_dns 的 ECS（在客户端无公章网 EDNS 子网时使用）；留空则仅用 VIP→realIP 映射公网 /24·/48，再无则不发 ECS。从不使用 default_cn_ecs。
+    # default_out_ecs: 若填写，海外 out_dns 固定使用该公网地址的 /24·/48 ECS（忽略客户端 EDNS 与 VIP 映射）。留空时：公章网客户端 EDNS → VIP→realIP /24·/48 → 不发 ECS。从不使用 default_cn_ecs。
     default_out_ecs: ""
     http_max_idle_conns: 128
     http_max_idle_conns_per_host: 32
@@ -61,6 +61,7 @@ resolver:
     max_cache_ttl_seconds: 3600
     non_whitelist_action: nxdomain
     query_timeout_ms: 3000
+    # upstream_retries：国内 cn_dns 每次查询最多尝试次数。海外 out_dns 仅 1 个上游时同此；多个海外上游时单次 QueryOUT 每节点至多 2 次再换下一节点（总次数 ≤ 2×节点数）。
     upstream_retries: 2
     disable_ipv6: true
     max_inflight_upstream: 0

@@ -47,6 +47,8 @@ type DNSResponse struct {
 	UpstreamRequestURL string `json:"upstream_request_url,omitempty"`
 	// GoogleEchoedECS is the edns_client_subnet field from Google JSON /resolve when present and applicable.
 	GoogleEchoedECS string `json:"-"`
+	// SkipQueryLog when true: transport must not emit admin/query logs or stats rows for this answer.
+	SkipQueryLog bool `json:"-"`
 }
 
 // QuestionName returns the first question FQDN in lowercase.
@@ -145,4 +147,41 @@ func AnswerSummary(m *dns.Msg) string {
 		s = s[:217] + "…"
 	}
 	return s
+}
+
+// IsReverseLookupQName reports whether fqdn is under IPv4 or IPv6 reverse DNS trees.
+func IsReverseLookupQName(fqdn string) bool {
+	s := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(fqdn)), ".")
+	return strings.HasSuffix(s, ".in-addr.arpa") || strings.HasSuffix(s, ".ip6.arpa")
+}
+
+// NewIPv6DisabledAAAAResponse returns NOERROR empty (NODATA) for AAAA when disable_ipv6 is enabled.
+// SkipQueryLog avoids admin query logs and stats rows; transport layers may short-circuit before Resolve.
+func NewIPv6DisabledAAAAResponse(req *DNSRequest) *DNSResponse {
+	m := new(dns.Msg)
+	m.SetReply(req.Msg)
+	m.Rcode = dns.RcodeSuccess
+	m.Authoritative = false
+	m.Answer = nil
+	return &DNSResponse{
+		Msg:          m,
+		MinTTL:       60,
+		SkipQueryLog: true,
+		Log:          ResolveLog{},
+	}
+}
+
+// NewReverseLookupSkippedResponse returns REFUSED without caching or logging (see Resolver / DNS frontends).
+func NewReverseLookupSkippedResponse(req *DNSRequest) *DNSResponse {
+	m := new(dns.Msg)
+	m.SetReply(req.Msg)
+	m.Rcode = dns.RcodeRefused
+	m.Authoritative = false
+	m.RecursionAvailable = true
+	return &DNSResponse{
+		Msg:          m,
+		MinTTL:       0,
+		SkipQueryLog: true,
+		Log:          ResolveLog{},
+	}
 }

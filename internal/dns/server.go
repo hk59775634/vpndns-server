@@ -116,11 +116,30 @@ func (s *Server) handle(w dns.ResponseWriter, r *dns.Msg) {
 		_ = w.WriteMsg(m)
 		return
 	}
+	name := strings.ToLower(r.Question[0].Name)
+	if models.IsReverseLookupQName(name) {
+		m := new(dns.Msg)
+		m.SetReply(r)
+		m.Rcode = dns.RcodeRefused
+		m.Authoritative = false
+		m.RecursionAvailable = true
+		_ = w.WriteMsg(m)
+		return
+	}
+	qt := r.Question[0].Qtype
+	cfg := s.cfg.Get()
+	if cfg != nil && cfg.Resolver.DisableIPv6 && qt == dns.TypeAAAA {
+		m := new(dns.Msg)
+		m.SetReply(r)
+		m.Rcode = dns.RcodeSuccess
+		m.Authoritative = false
+		m.Answer = nil
+		_ = w.WriteMsg(m)
+		return
+	}
 	if s.st != nil {
 		s.st.RecordDNSQuery()
 	}
-	name := strings.ToLower(r.Question[0].Name)
-	qt := r.Question[0].Qtype
 	nw := w.RemoteAddr().Network()
 	transport := "udp"
 	if strings.HasPrefix(nw, "tcp") {
@@ -132,7 +151,6 @@ func (s *Server) handle(w dns.ResponseWriter, r *dns.Msg) {
 		Transport: transport,
 	}
 	if s.blocked(name) {
-		cfg := s.cfg.Get()
 		action := "nxdomain"
 		if cfg != nil {
 			action = cfg.Resolver.NonWhitelistAction
@@ -186,8 +204,10 @@ func (s *Server) handle(w dns.ResponseWriter, r *dns.Msg) {
 	}
 	resp.Msg.SetReply(r)
 	_ = w.WriteMsg(resp.Msg)
-	rec := querylog.FromResolve(name, clientIP, qt, resp, lat)
-	s.emitLog(rec)
+	if !resp.SkipQueryLog {
+		rec := querylog.FromResolve(name, clientIP, qt, resp, lat)
+		s.emitLog(rec)
+	}
 }
 
 func (s *Server) blocked(name string) bool {

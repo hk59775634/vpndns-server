@@ -160,11 +160,33 @@ func (s *Server) ResolveJSONHandler() http.Handler {
 			http.Error(w, "no question", http.StatusBadRequest)
 			return
 		}
+		wireName := msg.Question[0].Name
+		if models.IsReverseLookupQName(wireName) {
+			skip := new(dns.Msg)
+			skip.SetQuestion(wireName, qtype)
+			skip.Rcode = dns.RcodeRefused
+			skip.RecursionDesired = true
+			skip.RecursionAvailable = true
+			w.Header().Set("Content-Type", "application/dns-json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(dnsMsgToGoogleJSON(skip))
+			return
+		}
+		if cfg != nil && cfg.Resolver.DisableIPv6 && qtype == dns.TypeAAAA {
+			skip := new(dns.Msg)
+			skip.SetQuestion(wireName, qtype)
+			skip.Rcode = dns.RcodeSuccess
+			skip.RecursionDesired = true
+			skip.RecursionAvailable = true
+			w.Header().Set("Content-Type", "application/dns-json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(dnsMsgToGoogleJSON(skip))
+			return
+		}
 		if s.st != nil {
 			s.st.RecordDNSQuery()
 		}
 
-		wireName := msg.Question[0].Name
 		qt := msg.Question[0].Qtype
 		dnsReq := &models.DNSRequest{
 			Msg:        msg,
@@ -214,6 +236,8 @@ func (s *Server) ResolveJSONHandler() http.Handler {
 		w.Header().Set("Content-Type", "application/dns-json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(dnsMsgToGoogleJSON(resp.Msg))
-		s.emit(querylog.FromResolve(wireName, vip, qt, resp, lat))
+		if !resp.SkipQueryLog {
+			s.emit(querylog.FromResolve(wireName, vip, qt, resp, lat))
+		}
 	})
 }

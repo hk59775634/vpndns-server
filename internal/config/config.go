@@ -58,7 +58,7 @@ type Config struct {
 		HTTPMaxIdleConnsPerHost int `yaml:"http_max_idle_conns_per_host" json:"http_max_idle_conns_per_host"`
 		// DefaultCNECS: when set, used as last-resort ECS for cn_dns and cache (IPv4 /24, IPv6 /48) when the client sends no usable public EDNS subnet and there is no mapped public VIP→realIP. Priority: client public ECS → mapped public IP → default_cn_ecs. Not used for out_dns.
 		DefaultCNECS string `yaml:"default_cn_ecs" json:"default_cn_ecs"`
-		// DefaultOUTECS: when set, out_dns uses this ECS (IPv4 /24, IPv6 /48) after client public EDNS subnet, ignoring VIP 映射公网 IP. If empty, out_dns uses mapped public IP only; never default_cn_ecs (overseas must not get a fixed CN subnet).
+		// DefaultOUTECS: when set, out_dns always sends this ECS (IPv4 /24, IPv6 /48), ignoring client EDNS and VIP 映射公网 IP. If empty, priority is client public EDNS → mapped public /24·/48 → no ECS. Never default_cn_ecs.
 		DefaultOUTECS string `yaml:"default_out_ecs" json:"default_out_ecs"`
 	} `yaml:"mapper" json:"mapper"`
 

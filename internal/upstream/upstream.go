@@ -188,12 +188,158 @@ func (p *Pool) QueryCN(ctx context.Context, req *models.DNSRequest, ecsIP net.IP
 	return p.query(ctx, list, req, ecsIP, ecsBits)
 }
 
-// QueryOUT runs against a weighted-random OUT upstream.
+// QueryOUT queries out_dns upstreams. With multiple servers, each node is tried at most
+// outPerUpstreamMaxAttempts times (2) before switching; total exchanges cap at 2 * n (no
+// infinite loop). Transport errors, empty wire, or NOERROR-but-empty A/AAAA trigger a
+// retry on the same node until that cap, then the next node. With one server, upstream_retries applies.
 func (p *Pool) QueryOUT(ctx context.Context, req *models.DNSRequest, ecsIP net.IP, ecsBits int) (*models.DNSResponse, error) {
 	p.mu.RLock()
 	list := p.out
+	ordered := p.orderedFallback
+	retries := p.retries
 	p.mu.RUnlock()
-	return p.query(ctx, list, req, ecsIP, ecsBits)
+	return p.queryOUT(ctx, list, ordered, retries, req, ecsIP, ecsBits)
+}
+
+func (p *Pool) exchangeOneUpstream(ctx context.Context, u *config.UpstreamSpec, req *models.DNSRequest, ecsIP net.IP, ecsBits int) (*dns.Msg, string, string, error) {
+	msg := req.Msg.Copy()
+	msg.Id = dns.Id()
+	msg.RecursionDesired = true
+	if ecsIP != nil && ecsBits > 0 {
+		setECS(msg, ecsIP, ecsBits)
+	}
+	var resp *dns.Msg
+	var reqURL string
+	var googleEcho string
+	var err error
+	func() {
+		p.mu.RLock()
+		g := p.guard
+		p.mu.RUnlock()
+		if g == nil {
+			resp, reqURL, googleEcho, err = p.exchange(ctx, u, msg, ecsIP, ecsBits)
+			return
+		}
+		release, aerr := g.AcquireUpstream(ctx)
+		if aerr != nil {
+			err = aerr
+			return
+		}
+		defer release()
+		resp, reqURL, googleEcho, err = p.exchange(ctx, u, msg, ecsIP, ecsBits)
+	}()
+	return resp, reqURL, googleEcho, err
+}
+
+func (p *Pool) wrapUpstreamResponse(u *config.UpstreamSpec, resp *dns.Msg, reqURL, googleEcho string) *models.DNSResponse {
+	return &models.DNSResponse{
+		Msg:                resp,
+		MinTTL:             models.MinAnswerTTL(resp, 60),
+		UpstreamEndpoint:   formatUpstreamSpec(u),
+		UpstreamRequestURL: reqURL,
+		GoogleEchoedECS:    googleEcho,
+	}
+}
+
+// outPerUpstreamMaxAttempts is how many times each out_dns upstream may be queried in one
+// QueryOUT when there are multiple upstreams (mitigate transient timeouts per node).
+const outPerUpstreamMaxAttempts = 2
+
+// outEmptyNoDataAQuad reports NOERROR with no A/AAAA in Answer or Extra (retry-worthy for OUT).
+func outEmptyNoDataAQuad(msg *dns.Msg, qtype uint16) bool {
+	if msg == nil {
+		return true
+	}
+	if qtype != dns.TypeA && qtype != dns.TypeAAAA {
+		return false
+	}
+	if msg.Rcode != dns.RcodeSuccess {
+		return false
+	}
+	return len(models.ExtractIPs(msg)) == 0
+}
+
+func (p *Pool) queryOUT(ctx context.Context, list []config.UpstreamSpec, ordered bool, retries int, req *models.DNSRequest, ecsIP net.IP, ecsBits int) (*models.DNSResponse, error) {
+	n := len(list)
+	if n == 0 {
+		return nil, fmt.Errorf("no upstreams")
+	}
+	if retries < 1 {
+		retries = 1
+	}
+	qtype := uint16(0)
+	if req != nil && req.Msg != nil && len(req.Msg.Question) > 0 {
+		qtype = req.Msg.Question[0].Qtype
+	}
+	var lastErr error
+	var lastResp *models.DNSResponse
+
+	if n == 1 {
+		u := &list[0]
+		for attempt := 0; attempt < retries; attempt++ {
+			resp, reqURL, googleEcho, err := p.exchangeOneUpstream(ctx, u, req, ecsIP, ecsBits)
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			if resp == nil {
+				lastErr = fmt.Errorf("empty response")
+				continue
+			}
+			dr := p.wrapUpstreamResponse(u, resp, reqURL, googleEcho)
+			if outEmptyNoDataAQuad(resp, qtype) {
+				lastResp = dr
+				lastErr = nil
+				continue
+			}
+			return dr, nil
+		}
+		if lastResp != nil {
+			return lastResp, nil
+		}
+		if lastErr == nil {
+			lastErr = fmt.Errorf("all upstreams failed")
+		}
+		return nil, lastErr
+	}
+
+	order := make([]int, n)
+	for i := range order {
+		order[i] = i
+	}
+	if !ordered {
+		p.rngMu.Lock()
+		p.rng.Shuffle(n, func(i, j int) { order[i], order[j] = order[j], order[i] })
+		p.rngMu.Unlock()
+	}
+	for _, idx := range order {
+		u := &list[idx]
+		for attempt := 0; attempt < outPerUpstreamMaxAttempts; attempt++ {
+			resp, reqURL, googleEcho, err := p.exchangeOneUpstream(ctx, u, req, ecsIP, ecsBits)
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			if resp == nil {
+				lastErr = fmt.Errorf("empty response")
+				continue
+			}
+			dr := p.wrapUpstreamResponse(u, resp, reqURL, googleEcho)
+			if outEmptyNoDataAQuad(resp, qtype) {
+				lastResp = dr
+				lastErr = nil
+				continue
+			}
+			return dr, nil
+		}
+	}
+	if lastResp != nil {
+		return lastResp, nil
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("all upstreams failed")
+	}
+	return nil, lastErr
 }
 
 func (p *Pool) query(ctx context.Context, list []config.UpstreamSpec, req *models.DNSRequest, ecsIP net.IP, ecsBits int) (*models.DNSResponse, error) {
@@ -206,32 +352,7 @@ func (p *Pool) query(ctx context.Context, list []config.UpstreamSpec, req *model
 		if u == nil {
 			break
 		}
-		msg := req.Msg.Copy()
-		msg.Id = dns.Id()
-		msg.RecursionDesired = true
-		if ecsIP != nil && ecsBits > 0 {
-			setECS(msg, ecsIP, ecsBits)
-		}
-		var resp *dns.Msg
-		var reqURL string
-		var googleEcho string
-		var err error
-		func() {
-			p.mu.RLock()
-			g := p.guard
-			p.mu.RUnlock()
-			if g == nil {
-				resp, reqURL, googleEcho, err = p.exchange(ctx, u, msg, ecsIP, ecsBits)
-				return
-			}
-			release, aerr := g.AcquireUpstream(ctx)
-			if aerr != nil {
-				err = aerr
-				return
-			}
-			defer release()
-			resp, reqURL, googleEcho, err = p.exchange(ctx, u, msg, ecsIP, ecsBits)
-		}()
+		resp, reqURL, googleEcho, err := p.exchangeOneUpstream(ctx, u, req, ecsIP, ecsBits)
 		if err != nil {
 			lastErr = err
 			continue
@@ -240,13 +361,7 @@ func (p *Pool) query(ctx context.Context, list []config.UpstreamSpec, req *model
 			lastErr = fmt.Errorf("empty response")
 			continue
 		}
-		return &models.DNSResponse{
-			Msg:                resp,
-			MinTTL:             models.MinAnswerTTL(resp, 60),
-			UpstreamEndpoint:   formatUpstreamSpec(u),
-			UpstreamRequestURL: reqURL,
-			GoogleEchoedECS:    googleEcho,
-		}, nil
+		return p.wrapUpstreamResponse(u, resp, reqURL, googleEcho), nil
 	}
 	if lastErr == nil {
 		lastErr = fmt.Errorf("all upstreams failed")

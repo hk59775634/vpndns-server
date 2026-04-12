@@ -9,15 +9,17 @@
 # 平台默认：linux/amd64, linux/arm64, linux/arm/v7（与 Release 二进制一致）
 #
 # 用法：
-#   VERSION=v1.0.5 ./scripts/docker-buildx-push.sh
+#   VERSION=v1.0.6 ./scripts/docker-buildx-push.sh
+#   PUSH_LATEST=0 VERSION=v1.0.6-test ./scripts/docker-buildx-push.sh   # 仅测试标签，不覆盖 :latest
 #   USE_GIT_TAG=1 ./scripts/docker-buildx-push.sh    # VERSION 取当前仓库最新 git 标签（如 v1.0.1）
 #   ./scripts/docker-buildx-push.sh                  # 仅 :latest（会打印警告）
 #
-# 环境变量：IMAGE、PLATFORMS、BUILDER、USE_GIT_TAG
+# 环境变量：IMAGE、PLATFORMS、BUILDER、USE_GIT_TAG、PUSH_LATEST（0=不推 :latest，便于测试标签）
 set -euo pipefail
 
 IMAGE="${IMAGE:-hk59775634/vpndns-server}"
 VERSION="${VERSION:-}"
+PUSH_LATEST="${PUSH_LATEST:-1}"
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64,linux/arm/v7}"
 BUILDER="${BUILDER:-vpndns-multiarch}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -47,10 +49,17 @@ if ! docker buildx inspect "$BUILDER" >/dev/null 2>&1; then
 fi
 docker buildx use "$BUILDER"
 
-TAG_ARGS=( -t "${IMAGE}:latest" )
+TAG_ARGS=()
+if [[ "$PUSH_LATEST" == "1" ]]; then
+	TAG_ARGS+=( -t "${IMAGE}:latest" )
+fi
 if [[ -n "$VERSION" ]]; then
 	[[ "$VERSION" == v* ]] || VERSION="v${VERSION}"
 	TAG_ARGS+=( -t "${IMAGE}:${VERSION}" )
+fi
+if [[ ${#TAG_ARGS[@]} -eq 0 ]]; then
+	echo "错误：无镜像标签。请设置 VERSION，或保持 PUSH_LATEST=1。" >&2
+	exit 1
 fi
 
 echo "==> buildx --platform $PLATFORMS push ${TAG_ARGS[*]}"
@@ -65,9 +74,13 @@ docker buildx build \
 
 echo "==> done"
 if [[ -n "$VERSION" ]]; then
-	echo "    正式标签: docker pull ${IMAGE}:${VERSION}"
-	echo "    最新跟踪: docker pull ${IMAGE}:latest"
-	echo "    （本轮 :${VERSION} 与 :latest 指向同一 manifest；请在 Hub 长期保留各历史 v* 标签勿删，便于回滚）"
+	echo "    版本标签: docker pull ${IMAGE}:${VERSION}"
+	if [[ "$PUSH_LATEST" == "1" ]]; then
+		echo "    最新跟踪: docker pull ${IMAGE}:latest"
+		echo "    （本轮 :${VERSION} 与 :latest 指向同一 manifest；请在 Hub 长期保留各历史 v* 标签勿删，便于回滚）"
+	fi
 else
-	echo "    docker pull ${IMAGE}:latest"
+	if [[ "$PUSH_LATEST" == "1" ]]; then
+		echo "    docker pull ${IMAGE}:latest"
+	fi
 fi
